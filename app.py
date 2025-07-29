@@ -28,9 +28,10 @@ def obter_yelo_tabela():
 
     for df in tabelas:
         df.columns = [col.strip().lower() for col in df.columns]
-        if 'player' in df.columns and 'yelo' in df.columns:
-            df = df.dropna(subset=["player"])
+        if 'player' in df.columns and 'yelo' in df.columns and len(df) > 300:
+            df = df.dropna(subset=["player", "yelo"])
             df = df.rename(columns={"player": "Player", "yelo": "yElo"})
+            df["Player"] = df["Player"].str.strip()
             return df[["Player", "yElo"]]
     raise ValueError("Não foi possível encontrar a tabela de yElo.")
 
