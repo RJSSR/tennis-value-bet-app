@@ -1,9 +1,17 @@
 import streamlit as st
 import pandas as pd
 import requests
-import html5lib
 from bs4 import BeautifulSoup
 from difflib import get_close_matches
+import importlib.util
+
+# ----- Verificar dependência html5lib -----
+if importlib.util.find_spec("html5lib") is None:
+    st.error(
+        "Dependência obrigatória não encontrada: 'html5lib'.\n"
+        "Execute `pip install html5lib` no terminal antes de usar o aplicativo."
+    )
+    st.stop()
 
 # --------------------- Funções 
 def obter_elo_tabela():
@@ -14,7 +22,8 @@ def obter_elo_tabela():
         soup = BeautifulSoup(response.content, "html.parser")
         tabelas = pd.read_html(str(soup), flavor="bs4")
         for df in tabelas:
-            df.columns = [col.strip() for col in df.columns]
+            # Corrigir colunas para string com strip
+            df.columns = [str(col).strip() for col in df.columns]
             if 'Player' in df.columns:
                 df = df.dropna(subset=["Player"])
                 return df
@@ -31,7 +40,8 @@ def obter_yelo_tabela():
         soup = BeautifulSoup(response.content, "html.parser")
         tabelas = pd.read_html(str(soup), flavor="bs4")
         for df in tabelas:
-            df.columns = [col.strip().lower() for col in df.columns]
+            # Corrigir colunas para string com strip e em minusculas
+            df.columns = [str(col).strip().lower() for col in df.columns]
             if 'player' in df.columns and 'yelo' in df.columns:
                 df = df.dropna(subset=["player"])
                 df = df.rename(columns={"player": "Player", "yelo": "yElo"})
@@ -115,7 +125,7 @@ if jogador_a and jogador_b and jogador_a != jogador_b:
     yelo_a = encontrar_yelo(jogador_a, yelo_df)
     yelo_b = encontrar_yelo(jogador_b, yelo_df)
 
-    # Exibe elos dos jogadores
+    # Exibe elos dos jogadores com transparência
     with st.expander("Mostrar detalhes completos dos jogadores selecionados"):
         st.markdown(f"**{jogador_a}**")
         st.json(dados_a.to_dict())
@@ -139,7 +149,6 @@ if jogador_a and jogador_b and jogador_a != jogador_b:
             esp_a = dados_a[elo_chave]
             esp_b = dados_b[elo_chave]
 
-            # Fórmula explicada (pode ajustar conforme sua lógica)
             elo_final_a = (esp_a / geral_a) * yelo_a
             elo_final_b = (esp_b / geral_b) * yelo_b
 
@@ -188,4 +197,5 @@ else:
 
 st.markdown("---")
 st.caption("Fonte dos dados: tennisabstract.com | Este app é experimental. Use com responsabilidade.")
+
 
