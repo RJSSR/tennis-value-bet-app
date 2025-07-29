@@ -143,14 +143,19 @@ if jogador_a and jogador_b and jogador_a != jogador_b:
             "Grass": "gElo"
         }[superficie]
 
-        try:
-            geral_a = dados_a["Elo"]
-            geral_b = dados_b["Elo"]
-            esp_a = dados_a[elo_chave]
-            esp_b = dados_b[elo_chave]
+try:
+    geral_a = float(dados_a["Elo"])
+    geral_b = float(dados_b["Elo"])
+    esp_a = float(dados_a[elo_chave])
+    esp_b = float(dados_b[elo_chave])
+    yelo_a = float(yelo_a)
+    yelo_b = float(yelo_b)
+except (ValueError, TypeError, KeyError) as e:
+    st.error(f"Erro ao obter valores numéricos para cálculo: {e}")
+    st.stop()
 
-            elo_final_a = (esp_a / geral_a) * yelo_a
-            elo_final_b = (esp_b / geral_b) * yelo_b
+elo_final_a = (esp_a / geral_a) * yelo_a
+elo_final_b = (esp_b / geral_b) * yelo_b
 
             prob_a = elo_prob(elo_final_a, elo_final_b)
             prob_b = 1 - prob_a
