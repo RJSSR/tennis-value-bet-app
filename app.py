@@ -22,7 +22,6 @@ def obter_elo_tabela():
         soup = BeautifulSoup(response.content, "html.parser")
         tabelas = pd.read_html(str(soup), flavor="bs4")
         for df in tabelas:
-            # Corrigir colunas para string com strip
             df.columns = [str(col).strip() for col in df.columns]
             if 'Player' in df.columns:
                 df = df.dropna(subset=["Player"])
@@ -40,7 +39,6 @@ def obter_yelo_tabela():
         soup = BeautifulSoup(response.content, "html.parser")
         tabelas = pd.read_html(str(soup), flavor="bs4")
         for df in tabelas:
-            # Corrigir colunas para string com strip e em minusculas
             df.columns = [str(col).strip().lower() for col in df.columns]
             if 'player' in df.columns and 'yelo' in df.columns:
                 df = df.dropna(subset=["player"])
@@ -125,7 +123,6 @@ if jogador_a and jogador_b and jogador_a != jogador_b:
     yelo_a = encontrar_yelo(jogador_a, yelo_df)
     yelo_b = encontrar_yelo(jogador_b, yelo_df)
 
-    # Exibe elos dos jogadores com transparência
     with st.expander("Mostrar detalhes completos dos jogadores selecionados"):
         st.markdown(f"**{jogador_a}**")
         st.json(dados_a.to_dict())
@@ -143,60 +140,59 @@ if jogador_a and jogador_b and jogador_a != jogador_b:
             "Grass": "gElo"
         }[superficie]
 
-try:
-    geral_a = float(dados_a["Elo"])
-    geral_b = float(dados_b["Elo"])
-    esp_a = float(dados_a[elo_chave])
-    esp_b = float(dados_b[elo_chave])
-    yelo_a = float(yelo_a)
-    yelo_b = float(yelo_b)
-except (ValueError, TypeError, KeyError) as e:
-    st.error(f"Erro ao obter valores numéricos para cálculo: {e}")
-    st.stop()
+        try:
+            geral_a = float(dados_a["Elo"])
+            geral_b = float(dados_b["Elo"])
+            esp_a = float(dados_a[elo_chave])
+            esp_b = float(dados_b[elo_chave])
+            yelo_a_f = float(yelo_a)
+            yelo_b_f = float(yelo_b)
+        except (ValueError, TypeError, KeyError) as e:
+            st.error(f"Erro ao obter valores numéricos para cálculo: {e}")
+            st.stop()
 
-elo_final_a = (esp_a / geral_a) * yelo_a
-elo_final_b = (esp_b / geral_b) * yelo_b
+        # Cálculo correto com indentação adequada
+        elo_final_a = (esp_a / geral_a) * yelo_a_f
+        elo_final_b = (esp_b / geral_b) * yelo_b_f
 
-            prob_a = elo_prob(elo_final_a, elo_final_b)
-            prob_b = 1 - prob_a
+        prob_a = elo_prob(elo_final_a, elo_final_b)
+        prob_b = 1 - prob_a
 
-            valor_a = value_bet(prob_a, odd_a)
-            valor_b = value_bet(prob_b, odd_b)
+        valor_a = value_bet(prob_a, odd_a)
+        valor_b = value_bet(prob_b, odd_b)
 
-            st.markdown("---")
-            col_a, col_b = st.columns(2)
+        st.markdown("---")
+        col_a, col_b = st.columns(2)
 
-            with col_a:
-                st.metric("Probabilidade A vencer", f"{prob_a * 100:.2f}%")
-                st.metric("Valor esperado A", f"{valor_a * 100:.2f}%")
-                if valor_a > 0:
-                    st.success("Valor positivo ✅")
-                elif valor_a < 0:
-                    st.error("Sem valor ❌")
-                else:
-                    st.info("Aposta neutra")
+        with col_a:
+            st.metric("Probabilidade A vencer", f"{prob_a * 100:.2f}%")
+            st.metric("Valor esperado A", f"{valor_a * 100:.2f}%")
+            if valor_a > 0:
+                st.success("Valor positivo ✅")
+            elif valor_a < 0:
+                st.error("Sem valor ❌")
+            else:
+                st.info("Aposta neutra")
 
-            with col_b:
-                st.metric("Probabilidade B vencer", f"{prob_b * 100:.2f}%")
-                st.metric("Valor esperado B", f"{valor_b * 100:.2f}%")
-                if valor_b > 0:
-                    st.success("Valor positivo ✅")
-                elif valor_b < 0:
-                    st.error("Sem valor ❌")
-                else:
-                    st.info("Aposta neutra")
+        with col_b:
+            st.metric("Probabilidade B vencer", f"{prob_b * 100:.2f}%")
+            st.metric("Valor esperado B", f"{valor_b * 100:.2f}%")
+            if valor_b > 0:
+                st.success("Valor positivo ✅")
+            elif valor_b < 0:
+                st.error("Sem valor ❌")
+            else:
+                st.info("Aposta neutra")
 
-            with st.expander("Como é feito o cálculo?"):
-                st.write("""
-                O Elo final de cada jogador é calculado com:
-                ```
-                Elo Final = (Elo Superfície / Elo Geral) × yElo
-                ```
-                Depois, calcula-se a probabilidade pelo modelo Elo e o valor esperado usando as odds inseridas.
-                """)
+        with st.expander("Como é feito o cálculo?"):
+            st.write("""
+            O Elo final de cada jogador é calculado com:
+            ```
+            Elo Final = (Elo Superfície / Elo Geral) × yElo
+            ```
+            Depois, calcula-se a probabilidade pelo modelo Elo e o valor esperado usando as odds inseridas.
+            """)
 
-        except KeyError:
-            st.error(f"Não foi possível encontrar o Elo '{elo_chave}' para um dos jogadores.")
 else:
     st.info("Selecione jogadores diferentes em cada campo.")
 
