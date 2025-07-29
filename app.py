@@ -63,10 +63,6 @@ def elo_prob(elo_a, elo_b):
 def value_bet(prob, odd):
     return (prob * odd) - 1
 
-def buscar_jogadores(subtexto, jogadores):
-    encontrados = [j for j in jogadores if subtexto.lower() in j.lower()]
-    return encontrados
-
 def encontrar_yelo(jogador, yelo_df):
     if jogador in yelo_df["Player"].values:
         return yelo_df[yelo_df["Player"] == jogador]["yElo"].values[0]
@@ -94,16 +90,6 @@ st.success("Dados carregados com sucesso!")
 
 jogadores_disponiveis = sorted(elo_df["Player"].dropna().unique())
 
-# Busca de jogadores por substring
-with st.expander("Procurar nome do jogador por substring"):
-    busca_nome = st.text_input("Pesquisar por parte do nome")
-    if busca_nome:
-        encontrados = buscar_jogadores(busca_nome, jogadores_disponiveis)
-        if encontrados:
-            st.write("Jogadores encontrados:", encontrados)
-        else:
-            st.write("Nenhum jogador encontrado.")
-
 col1, col2 = st.columns(2)
 
 with col1:
@@ -123,35 +109,54 @@ if jogador_a and jogador_b and jogador_a != jogador_b:
     yelo_a = encontrar_yelo(jogador_a, yelo_df)
     yelo_b = encontrar_yelo(jogador_b, yelo_df)
 
-    with st.expander("Mostrar detalhes completos dos jogadores selecionados"):
-        st.markdown(f"**{jogador_a}**")
-        st.json(dados_a.to_dict())
-        st.markdown(f"**{jogador_b}**")
-        st.json(dados_b.to_dict())
-    st.markdown(f"**yElo de {jogador_a}:** {yelo_a}")
-    st.markdown(f"**yElo de {jogador_b}:** {yelo_b}")
+    # Bloco para mostrar Elo final abaixo das odds (com destaque)
+    with col1:
+        try:
+            geral_a = float(dados_a["Elo"])
+            esp_a = float(dados_a[{"Hard":"hElo","Clay":"cElo","Grass":"gElo"}[superficie]])
+            yelo_a_f = float(yelo_a)
+            elo_final_a = (esp_a / geral_a) * yelo_a_f
+            st.metric("Elo Final Jogador A", f"{elo_final_a:.2f}")
+        except Exception:
+            st.warning("Elo Final Jogador A não disponível")
 
-    if yelo_a is None or yelo_b is None:
+    with col2:
+        try:
+            geral_b = float(dados_b["Elo"])
+            esp_b = float(dados_b[{"Hard":"hElo","Clay":"cElo","Grass":"gElo"}[superficie]])
+            yelo_b_f = float(yelo_b)
+            elo_final_b = (esp_b / geral_b) * yelo_b_f
+            st.metric("Elo Final Jogador B", f"{elo_final_b:.2f}")
+        except Exception:
+            st.warning("Elo Final Jogador B não disponível")
+
+    # Mostrar detalhes completos, com yElo incluído
+    with st.expander("Mostrar detalhes completos dos jogadores selecionados"):
+        dados_a_exibir = dados_a.to_dict()
+        dados_a_exibir["yElo"] = yelo_a
+        st.markdown(f"### {jogador_a}")
+        st.json(dados_a_exibir)
+
+        dados_b_exibir = dados_b.to_dict()
+        dados_b_exibir["yElo"] = yelo_b
+        st.markdown(f"### {jogador_b}")
+        st.json(dados_b_exibir)
+
+    # Prosseguir só se yElo existem e valores numéricos
+    if None in [yelo_a, yelo_b]:
         st.error("Não foi possível encontrar o yElo de um dos jogadores.")
     else:
-        elo_chave = {
-            "Hard": "hElo",
-            "Clay": "cElo",
-            "Grass": "gElo"
-        }[superficie]
-
         try:
             geral_a = float(dados_a["Elo"])
             geral_b = float(dados_b["Elo"])
-            esp_a = float(dados_a[elo_chave])
-            esp_b = float(dados_b[elo_chave])
+            esp_a = float(dados_a[{"Hard":"hElo","Clay":"cElo","Grass":"gElo"}[superficie]])
+            esp_b = float(dados_b[{"Hard":"hElo","Clay":"cElo","Grass":"gElo"}[superficie]])
             yelo_a_f = float(yelo_a)
             yelo_b_f = float(yelo_b)
         except (ValueError, TypeError, KeyError) as e:
             st.error(f"Erro ao obter valores numéricos para cálculo: {e}")
             st.stop()
 
-        # Cálculo correto com indentação adequada
         elo_final_a = (esp_a / geral_a) * yelo_a_f
         elo_final_b = (esp_b / geral_b) * yelo_b_f
 
@@ -198,5 +203,6 @@ else:
 
 st.markdown("---")
 st.caption("Fonte dos dados: tennisabstract.com | Este app é experimental. Use com responsabilidade.")
+
 
 
