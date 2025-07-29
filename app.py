@@ -103,7 +103,6 @@ superficie_port = st.selectbox("Superfície", options=list(superficies_map.keys(
 # Mapeia para a chave usada internamente
 superficie = superficies_map[superficie_port]
 
-# Depois as colunas com os jogadores e odds
 col1, col2 = st.columns(2)
 
 with col1:
@@ -121,7 +120,7 @@ if jogador_a and jogador_b and jogador_a != jogador_b:
     yelo_a = encontrar_yelo(jogador_a, yelo_df)
     yelo_b = encontrar_yelo(jogador_b, yelo_df)
 
-    # Mostrar o Elo final logo abaixo das odds, dentro das mesmas colunas
+    # Mostrar Elo final logo abaixo das odds, dentro das mesmas colunas
     with col1:
         try:
             geral_a = float(dados_a["Elo"])
@@ -142,7 +141,7 @@ if jogador_a and jogador_b and jogador_a != jogador_b:
         except Exception:
             st.warning("Elo Final Jogador B não disponível")
 
-    # Mostrar detalhes completos dos jogadores com yElo
+    # Mostrar detalhes completos dos jogadores com yElo incluído
     with st.expander("Mostrar detalhes completos dos jogadores selecionados"):
         dados_a_exibir = dados_a.to_dict()
         dados_a_exibir["yElo"] = yelo_a
@@ -183,22 +182,18 @@ if jogador_a and jogador_b and jogador_a != jogador_b:
         with col_a:
             st.metric("Probabilidade A vencer", f"{prob_a * 100:.2f}%")
             st.metric("Valor esperado A", f"{valor_a * 100:.2f}%")
-            if valor_a > 0:
+            if odd_a >= 1.45 and 0.03 <= valor_a <= 0.20:
                 st.success("Valor positivo ✅")
-            elif valor_a < 0:
-                st.error("Sem valor ❌")
             else:
-                st.info("Aposta neutra")
+                st.error("Sem valor ❌")
 
         with col_b:
             st.metric("Probabilidade B vencer", f"{prob_b * 100:.2f}%")
             st.metric("Valor esperado B", f"{valor_b * 100:.2f}%")
-            if valor_b > 0:
+            if odd_b >= 1.45 and 0.03 <= valor_b <= 0.20:
                 st.success("Valor positivo ✅")
-            elif valor_b < 0:
-                st.error("Sem valor ❌")
             else:
-                st.info("Aposta neutra")
+                st.error("Sem valor ❌")
 
         with st.expander("Como é feito o cálculo?"):
             st.write("""
