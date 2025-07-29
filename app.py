@@ -13,8 +13,8 @@ def obter_elo_tabela():
     tabelas = pd.read_html(str(soup))
 
     for df in tabelas:
+        df.columns = [col.strip() for col in df.columns]
         if 'Player' in df.columns:
-            df.columns = [col.strip() for col in df.columns]
             df = df.dropna(subset=["Player"])
             return df
     raise ValueError("Não foi possível encontrar a tabela de Elo.")
@@ -26,10 +26,11 @@ def obter_yelo_tabela():
     tabelas = pd.read_html(str(soup))
 
     for df in tabelas:
-        if 'Player' in df.columns and 'yElo' in df.columns:
-            df.columns = [col.strip() for col in df.columns]
-            df = df.dropna(subset=["Player"])
-            return df[['Player', 'yElo']]
+        df.columns = [col.strip().lower() for col in df.columns]
+        if 'player' in df.columns and 'yelo' in df.columns:
+            df = df.dropna(subset=["player"])
+            df = df.rename(columns={"player": "Player", "yelo": "yElo"})
+            return df[["Player", "yElo"]]
     raise ValueError("Não foi possível encontrar a tabela de yElo.")
 
 @st.cache_data
