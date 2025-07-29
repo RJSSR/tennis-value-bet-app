@@ -1,3 +1,4 @@
+
 # Aplicativo Streamlit com download automático de Elo Ratings do Tennis Abstract
 
 import streamlit as st
@@ -5,17 +6,19 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
-# --------------------- Funções Auxiliares ---------------------
-
+# --------------------- Funções 
 def obter_elo_tabela():
     url = "https://tennisabstract.com/reports/atp_elo_ratings.html"
     response = requests.get(url)
     soup = BeautifulSoup(response.content, "html.parser")
     tabelas = pd.read_html(str(soup))
-    df = tabelas[0]
-    df.columns = ["Rank", "Player", "Elo", "hElo", "cElo", "gElo", "iElo", "Recent", "Peak"]
-    df["Player"] = df["Player"].str.strip()
-    return df
+
+    # Procurar a tabela correta (a que tem a coluna 'Player')
+    for df in tabelas:
+        if 'Player' in df.columns:
+            df.columns = [col.strip() for col in df.columns]
+            return df
+    raise ValueError("Não foi possível encontrar a tabela de Elo.")
 
 @st.cache_data
 def carregar_elo():
@@ -67,19 +70,22 @@ if jogador_a and jogador_b:
             "Indoor": "iElo"
         }[superficie]
 
-        elo_a = dados_a[elo_chave]
-        elo_b = dados_b[elo_chave]
+        try:
+            elo_a = dados_a[elo_chave]
+            elo_b = dados_b[elo_chave]
 
-        prob_a = elo_prob(elo_a, elo_b)
-        valor = value_bet(prob_a, odd_a)
+            prob_a = elo_prob(elo_a, elo_b)
+            valor = value_bet(prob_a, odd_a)
 
-        st.markdown("---")
-        st.metric("Probabilidade estimada de A vencer", f"{prob_a * 100:.2f}%")
-        st.metric("Valor esperado da aposta", f"{valor * 100:.2f}%")
+            st.markdown("---")
+            st.metric("Probabilidade estimada de A vencer", f"{prob_a * 100:.2f}%")
+            st.metric("Valor esperado da aposta", f"{valor * 100:.2f}%")
 
-        if valor > 0:
-            st.success("Aposta com valor! ✅")
-        elif valor < 0:
-            st.error("Sem valor na aposta ❌")
-        else:
-            st.info("Aposta neutra.")
+            if valor > 0:
+                st.success("Aposta com valor! ✅")
+            elif valor < 0:
+                st.error("Sem valor na aposta ❌")
+            else:
+                st.info("Aposta neutra.")
+        except KeyError:
+            st.error(f"Não foi possível encontrar o Elo '{elo_chave}' para um dos jogadores.")
