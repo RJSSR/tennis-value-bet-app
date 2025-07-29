@@ -1,4 +1,3 @@
-
 # Aplicativo Streamlit com download automático de Elo Ratings do Tennis Abstract
 
 import streamlit as st
@@ -17,19 +16,13 @@ def obter_elo_tabela():
     for df in tabelas:
         if 'Player' in df.columns:
             df.columns = [col.strip() for col in df.columns]
+            df = df.dropna(subset=["Player"])
             return df
     raise ValueError("Não foi possível encontrar a tabela de Elo.")
 
 @st.cache_data
 def carregar_elo():
     return obter_elo_tabela()
-
-def encontrar_jogador(df, nome):
-    nome = nome.lower().strip()
-    resultados = df[df["Player"].str.lower().str.contains(nome)]
-    if resultados.empty:
-        return None
-    return resultados.iloc[0]
 
 def elo_prob(elo_a, elo_b):
     return 1 / (1 + 10 ** ((elo_b - elo_a) / 400))
@@ -45,47 +38,63 @@ with st.spinner("A carregar Elo Ratings..."):
 
 st.success("Dados atualizados com sucesso!")
 
+jogadores_disponiveis = sorted(elo_df["Player"].dropna().unique())
+
 col1, col2 = st.columns(2)
 
 with col1:
-    jogador_a = st.text_input("Jogador A", placeholder="ex: Carlos Alcaraz")
+    jogador_a = st.selectbox("Seleciona o Jogador A", jogadores_disponiveis, index=0)
     odd_a = st.number_input("Odd para o Jogador A", value=1.80, step=0.01)
 
 with col2:
-    jogador_b = st.text_input("Jogador B", placeholder="ex: Jannik Sinner")
+    jogador_b = st.selectbox("Seleciona o Jogador B", jogadores_disponiveis, index=1)
+    odd_b = st.number_input("Odd para o Jogador B", value=2.00, step=0.01)
 
 superficie = st.selectbox("Superfície", ["Hard", "Clay", "Grass", "Indoor"])
 
 if jogador_a and jogador_b:
-    dados_a = encontrar_jogador(elo_df, jogador_a)
-    dados_b = encontrar_jogador(elo_df, jogador_b)
+    dados_a = elo_df[elo_df["Player"] == jogador_a].iloc[0]
+    dados_b = elo_df[elo_df["Player"] == jogador_b].iloc[0]
 
-    if dados_a is None or dados_b is None:
-        st.error("Jogador não encontrado. Verifica os nomes.")
-    else:
-        elo_chave = {
-            "Hard": "hElo",
-            "Clay": "cElo",
-            "Grass": "gElo",
-            "Indoor": "iElo"
-        }[superficie]
+    elo_chave = {
+        "Hard": "hElo",
+        "Clay": "cElo",
+        "Grass": "gElo",
+        "Indoor": "iElo"
+    }[superficie]
 
-        try:
-            elo_a = dados_a[elo_chave]
-            elo_b = dados_b[elo_chave]
+    try:
+        elo_a = dados_a[elo_chave]
+        elo_b = dados_b[elo_chave]
 
-            prob_a = elo_prob(elo_a, elo_b)
-            valor = value_bet(prob_a, odd_a)
+        prob_a = elo_prob(elo_a, elo_b)
+        prob_b = 1 - prob_a
 
-            st.markdown("---")
-            st.metric("Probabilidade estimada de A vencer", f"{prob_a * 100:.2f}%")
-            st.metric("Valor esperado da aposta", f"{valor * 100:.2f}%")
+        valor_a = value_bet(prob_a, odd_a)
+        valor_b = value_bet(prob_b, odd_b)
 
-            if valor > 0:
-                st.success("Aposta com valor! ✅")
-            elif valor < 0:
-                st.error("Sem valor na aposta ❌")
+        st.markdown("---")
+        col_a, col_b = st.columns(2)
+
+        with col_a:
+            st.metric("Probabilidade A vencer", f"{prob_a * 100:.2f}%")
+            st.metric("Valor esperado A", f"{valor_a * 100:.2f}%")
+            if valor_a > 0:
+                st.success("Valor positivo ✅")
+            elif valor_a < 0:
+                st.error("Sem valor ❌")
             else:
-                st.info("Aposta neutra.")
-        except KeyError:
-            st.error(f"Não foi possível encontrar o Elo '{elo_chave}' para um dos jogadores.")
+                st.info("Aposta neutra")
+
+        with col_b:
+            st.metric("Probabilidade B vencer", f"{prob_b * 100:.2f}%")
+            st.metric("Valor esperado B", f"{valor_b * 100:.2f}%")
+            if valor_b > 0:
+                st.success("Valor positivo ✅")
+            elif valor_b < 0:
+                st.error("Sem valor ❌")
+            else:
+                st.info("Aposta neutra")
+
+    except KeyError:
+        st.error(f"Não foi possível encontrar o Elo '{elo_chave}' para um dos jogadores.")
