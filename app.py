@@ -1,56 +1,85 @@
-
-# Aplicativo simples para avaliar se uma aposta tem valor com base nos Elo ratings do Tennis Abstract
+# Aplicativo Streamlit com download automático de Elo Ratings do Tennis Abstract
 
 import streamlit as st
-import math
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
 
-# Função para calcular probabilidade com base na diferença de Elo
+# --------------------- Funções Auxiliares ---------------------
+
+def obter_elo_tabela():
+    url = "https://tennisabstract.com/reports/atp_elo_ratings.html"
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, "html.parser")
+    tabelas = pd.read_html(str(soup))
+    df = tabelas[0]
+    df.columns = ["Rank", "Player", "Elo", "hElo", "cElo", "gElo", "iElo", "Recent", "Peak"]
+    df["Player"] = df["Player"].str.strip()
+    return df
+
+@st.cache_data
+def carregar_elo():
+    return obter_elo_tabela()
+
+def encontrar_jogador(df, nome):
+    nome = nome.lower().strip()
+    resultados = df[df["Player"].str.lower().str.contains(nome)]
+    if resultados.empty:
+        return None
+    return resultados.iloc[0]
+
 def elo_prob(elo_a, elo_b):
     return 1 / (1 + 10 ** ((elo_b - elo_a) / 400))
 
-# Função para calcular o Elo final ponderado (com base na superfície)
-def elo_final(surface_elo, general_elo, yelo):
-    if general_elo == 0:
-        return 0
-    return (surface_elo / general_elo) * yelo
-
-# Função para calcular valor esperado
 def value_bet(prob, odd):
     return (prob * odd) - 1
 
-st.title("Análise de Valor em Apostas de Ténis com Elo (Tennis Abstract)")
+# --------------------- Interface Streamlit ---------------------
+st.title("Análise de Valor em Apostas de Ténis (Elo - Tennis Abstract)")
 
-# Entrada de dados
-st.subheader("Jogador A")
-elo_a = st.number_input("Elo geral de A", value=1700.0)
-surf_elo_a = st.number_input("Elo por superfície de A", value=1700.0)
-yelo_a = st.number_input("yElo de A (forma atual)", value=1700.0)
-odd_a = st.number_input("Odd para o Jogador A", value=1.80)
+with st.spinner("A carregar Elo Ratings..."):
+    elo_df = carregar_elo()
 
-st.subheader("Jogador B")
-elo_b = st.number_input("Elo geral de B", value=1600.0)
-surf_elo_b = st.number_input("Elo por superfície de B", value=1600.0)
-yelo_b = st.number_input("yElo de B (forma atual)", value=1600.0)
+st.success("Dados atualizados com sucesso!")
 
-# Cálculo dos Elos finais
-final_elo_a = elo_final(surf_elo_a, elo_a, yelo_a)
-final_elo_b = elo_final(surf_elo_b, elo_b, yelo_b)
+col1, col2 = st.columns(2)
 
-# Probabilidades
-prob_a = elo_prob(final_elo_a, final_elo_b)
-prob_b = 1 - prob_a
+with col1:
+    jogador_a = st.text_input("Jogador A", placeholder="ex: Carlos Alcaraz")
+    odd_a = st.number_input("Odd para o Jogador A", value=1.80, step=0.01)
 
-# Value
-value = value_bet(prob_a, odd_a)
+with col2:
+    jogador_b = st.text_input("Jogador B", placeholder="ex: Jannik Sinner")
 
-# Mostrar resultados
-st.markdown("---")
-st.metric("Probabilidade estimada de A vencer", f"{prob_a*100:.2f}%")
-st.metric("Valor esperado da aposta em A", f"{value*100:.2f}%")
+superficie = st.selectbox("Superfície", ["Hard", "Clay", "Grass", "Indoor"])
 
-if value > 0:
-    st.success("Aposta com valor! ✅")
-elif value < 0:
-    st.error("Sem valor na aposta ❌")
-else:
-    st.info("Aposta neutra.")
+if jogador_a and jogador_b:
+    dados_a = encontrar_jogador(elo_df, jogador_a)
+    dados_b = encontrar_jogador(elo_df, jogador_b)
+
+    if dados_a is None or dados_b is None:
+        st.error("Jogador não encontrado. Verifica os nomes.")
+    else:
+        elo_chave = {
+            "Hard": "hElo",
+            "Clay": "cElo",
+            "Grass": "gElo",
+            "Indoor": "iElo"
+        }[superficie]
+
+        elo_a = dados_a[elo_chave]
+        elo_b = dados_b[elo_chave]
+
+        prob_a = elo_prob(elo_a, elo_b)
+        valor = value_bet(prob_a, odd_a)
+
+        st.markdown("---")
+        st.metric("Probabilidade estimada de A vencer", f"{prob_a * 100:.2f}%")
+        st.metric("Valor esperado da aposta", f"{valor * 100:.2f}%")
+
+        if valor > 0:
+            st.success("Aposta com valor! ✅")
+        elif valor < 0:
+            st.error("Sem valor na aposta ❌")
+        else:
+            st.info("Aposta neutra.")
