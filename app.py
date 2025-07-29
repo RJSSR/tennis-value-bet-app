@@ -95,23 +95,34 @@ if elo_df is None or yelo_df is None:
 
 st.success("Dados carregados com sucesso!")
 
-jogadores_disponiveis = sorted(elo_df["Player"].dropna().unique())
+# Criar coluna com nome limpo removendo o texto "Player"
+elo_df["Player_Limpo"] = elo_df["Player"].astype(str).str.replace("Player", "", regex=False).str.strip()
+
+# Dicionário para mapear nome limpo => nome original
+mapa_jogadores = dict(zip(elo_df["Player_Limpo"], elo_df["Player"]))
+
+# Lista de nomes limpos para exibir
+jogadores_disponiveis = sorted(mapa_jogadores.keys())
 
 # Primeiro o selectbox da superfície (em português)
 superficie_port = st.selectbox("Superfície", options=list(superficies_map.keys()))
 
-# Mapeia para a chave usada internamente
+# Traduz para chave correta para cálculo
 superficie = superficies_map[superficie_port]
 
 col1, col2 = st.columns(2)
 
 with col1:
-    jogador_a = st.selectbox("Seleciona o Jogador A", jogadores_disponiveis, index=0)
+    jogador_a_limpo = st.selectbox("Seleciona o Jogador A", jogadores_disponiveis, index=0)
     odd_a = st.number_input("Odd para o Jogador A", value=1.80, step=0.01)
 
 with col2:
-    jogador_b = st.selectbox("Seleciona o Jogador B", jogadores_disponiveis, index=1)
+    jogador_b_limpo = st.selectbox("Seleciona o Jogador B", jogadores_disponiveis, index=1)
     odd_b = st.number_input("Odd para o Jogador B", value=2.00, step=0.01)
+
+# Recuperar os nomes originais para a busca dos dados
+jogador_a = mapa_jogadores[jogador_a_limpo]
+jogador_b = mapa_jogadores[jogador_b_limpo]
 
 if jogador_a and jogador_b and jogador_a != jogador_b:
     dados_a = elo_df[elo_df["Player"] == jogador_a].iloc[0]
@@ -145,12 +156,12 @@ if jogador_a and jogador_b and jogador_a != jogador_b:
     with st.expander("Mostrar detalhes completos dos jogadores selecionados"):
         dados_a_exibir = dados_a.to_dict()
         dados_a_exibir["yElo"] = yelo_a
-        st.markdown(f"### {jogador_a}")
+        st.markdown(f"### {jogador_a_limpo}")
         st.json(dados_a_exibir)
 
         dados_b_exibir = dados_b.to_dict()
         dados_b_exibir["yElo"] = yelo_b
-        st.markdown(f"### {jogador_b}")
+        st.markdown(f"### {jogador_b_limpo}")
         st.json(dados_b_exibir)
 
     if yelo_a is None or yelo_b is None:
@@ -173,8 +184,17 @@ if jogador_a and jogador_b and jogador_a != jogador_b:
         prob_a = elo_prob(elo_final_a, elo_final_b)
         prob_b = 1 - prob_a
 
-        valor_a = value_bet(prob_a, odd_a)
-        valor_b = value_bet(prob_b, odd_b)
+        # Remover juice das odds antes do cálculo de valor esperado
+        prob_a_raw = 1 / odd_a
+        prob_b_raw = 1 / odd_b
+        soma_prob = prob_a_raw + prob_b_raw
+        prob_a_corr = prob_a_raw / soma_prob
+        prob_b_corr = prob_b_raw / soma_prob
+        odd_a_corr = 1 / prob_a_corr
+        odd_b_corr = 1 / prob_b_corr
+
+        valor_a = value_bet(prob_a, odd_a_corr)
+        valor_b = value_bet(prob_b, odd_b_corr)
 
         st.markdown("---")
         col_a, col_b = st.columns(2)
@@ -201,7 +221,7 @@ if jogador_a and jogador_b and jogador_a != jogador_b:
             ```
             Elo Final = (Elo Superfície / Elo Geral) × yElo
             ```
-            Depois, calcula-se a probabilidade pelo modelo Elo e o valor esperado usando as odds inseridas.
+            Depois, calcula-se a probabilidade pelo modelo Elo e o valor esperado usando as odds inseridas (ajustadas sem juice).
             """)
 
 else:
