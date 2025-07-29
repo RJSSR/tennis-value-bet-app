@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
+import html5lib
 from bs4 import BeautifulSoup
 from difflib import get_close_matches
 
