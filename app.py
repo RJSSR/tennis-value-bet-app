@@ -5,63 +5,77 @@ from bs4 import BeautifulSoup
 import re
 from difflib import get_close_matches
 import importlib.util
+import time
 
 BASE_URL = "https://www.tennisexplorer.com"
 
-# ----- Checar dependência html5lib -----
+# Dependência obrigatória para tabelas HTML
 if importlib.util.find_spec("html5lib") is None:
     st.error(
         "Dependência obrigatória não encontrada: 'html5lib'.\n"
-        "Execute `pip install html5lib` antes de rodar este app."
+        "Execute `pip install html5lib` no terminal antes de usar o aplicativo."
     )
     st.stop()
 
-# --- Funções ---
-
+# Obter a lista de torneios masculinos ATP ativos da página principal
 def obter_torneios_atp_ativos():
-    """Extrai a lista de torneios ATP masculinos ativos na página principal"""
     url = f"{BASE_URL}/matches/"
     r = requests.get(url)
-    r.raise_for_status()
     soup = BeautifulSoup(r.content, "html.parser")
-
     torneios = []
-    # Pegamos todos os links cujo href contenha "/atp-men/" para pegar torneios masculinos ATP
     for a in soup.select("a[href*='/atp-men/']"):
         nome = a.text.strip()
         href = a['href']
         url_completo = BASE_URL + href if href.startswith('/') else href
-        # Adiciona independe de conter "ATP" no nome - evita filtro restritivo
-        torneios.append({"nome": nome, "url": url_completo})
+        if url_completo not in [t['url'] for t in torneios]:
+            torneios.append({"nome": nome, "url": url_completo})
+    return torneios
 
-    # Remove duplicatas pelo url para garantir unicidade
-    vistos = set()
-    torneios_unicos = []
-    for t in torneios:
-        if t["url"] not in vistos:
-            torneios_unicos.append(t)
-            vistos.add(t["url"])
+# Buscar o nome completo do jogador a partir da página pessoal
+@st.cache_data(show_spinner=False)
+def obter_nome_completo(url_jogador):
+    try:
+        r = requests.get(url_jogador, timeout=15)
+        soup = BeautifulSoup(r.content, "html.parser")
+        h1 = soup.find("h1")
+        if h1:
+            nome = re.sub(r'\s+', ' ', h1.get_text(strip=True))
+            return nome
+    except:
+        pass
+    return None
 
-    return torneios_unicos
+def limpar_numero_ranking(nome):
+    return re.sub(r"\s*\(\d+\)", "", nome).strip()
 
-def obter_jogos_do_torneio(url_torneio):
-    """Extrai os jogos agendados, com nomes limpos e odds, da página do torneio"""
-    r = requests.get(url_torneio)
-    r.raise_for_status()
-    soup = BeautifulSoup(r.content, "html.parser")
-
+# Extrair jogos (com nomes completos) do torneio selecionado
+@st.cache_data(show_spinner=False)
+def obter_jogos_do_torneio_completos(url_torneio):
     jogos = []
+    r = requests.get(url_torneio)
+    soup = BeautifulSoup(r.content, "html.parser")
+    tabelas = soup.select("table")
+    if not tabelas:
+        return jogos
 
-    for table in soup.select("table"):
+    jogadores_links = []
+
+    # Buscar todos os links de jogadores presentes na página do torneio
+    for a in soup.select("a[href^='/player/']"):
+        nome = a.text.strip()
+        url_jogador = BASE_URL + a['href']
+        jogadores_links.append((nome, url_jogador))
+
+    mapa_links = dict(jogadores_links)  # nome reduzido -> url perfil
+
+    for table in tabelas:
         tbody = table.find("tbody")
         if not tbody:
             continue
-
         for tr in tbody.find_all("tr"):
             tds = tr.find_all("td")
             if len(tds) < 7:
                 continue
-
             confronto = tds[2].text.strip()
             try:
                 odd_a = float(tds[5].text.strip())
@@ -70,29 +84,32 @@ def obter_jogos_do_torneio(url_torneio):
                 odd_a = None
                 odd_b = None
 
-            jogadores = confronto.split("-")
-            if len(jogadores) != 2:
+            partes = confronto.split('-')
+            if len(partes) != 2:
                 continue
-            jogador_a = limpar_numero_ranking(jogadores[0].strip())
-            jogador_b = limpar_numero_ranking(jogadores[1].strip())
+            nome_red_a = limpar_numero_ranking(partes[0].strip())
+            nome_red_b = limpar_numero_ranking(partes[1].strip())
+
+            # Pega o link individual do jogador (se houver)
+            url_jog_a = mapa_links.get(nome_red_a)
+            url_jog_b = mapa_links.get(nome_red_b)
+
+            # Busca nome completo de cada jogador (com cache)
+            nome_completo_a = obter_nome_completo(url_jog_a) if url_jog_a else nome_red_a
+            nome_completo_b = obter_nome_completo(url_jog_b) if url_jog_b else nome_red_b
 
             jogos.append({
-                "label": f"{jogador_a} vs {jogador_b}",
-                "jogador_a": jogador_a,
-                "jogador_b": jogador_b,
+                "label": f"{nome_completo_a} vs {nome_completo_b}",
+                "jogador_a": nome_completo_a,
+                "jogador_b": nome_completo_b,
                 "odd_a": odd_a,
-                "odd_b": odd_b,
+                "odd_b": odd_b
             })
-
         if jogos:
-            break  # pegar só a primeira tabela válida (normalmente é a principal)
-
+            break
     return jogos
 
-def limpar_numero_ranking(nome):
-    """Remove números de ranking entre parênteses do nome do jogador"""
-    return re.sub(r"\s*\(\d+\)", "", nome).strip()
-
+# Funções Elo/yElo (iguais ao fluxo anterior)
 def obter_elo_tabela():
     url = "https://tennisabstract.com/reports/atp_elo_ratings.html"
     try:
@@ -145,7 +162,7 @@ def value_bet(prob, odd):
 def encontrar_yelo(jogador, yelo_df):
     if jogador in yelo_df["Player"].values:
         return yelo_df[yelo_df["Player"] == jogador]["yElo"].values[0]
-    candidatos = get_close_matches(jogador, yelo_df["Player"], n=1, cutoff=0.70)
+    candidatos = get_close_matches(jogador, yelo_df["Player"], n=1, cutoff=0.7)
     if candidatos:
         return yelo_df[yelo_df["Player"] == candidatos[0]]["yElo"].values[0]
     return None
@@ -156,9 +173,8 @@ superficies_map = {
     "Terra Batida": "Clay"
 }
 
-# --- App Streamlit ---
-
-st.title("Análise de Valor em Apostas de Ténis — Torneios ATP Automáticos")
+# --- App
+st.title("Análise de Valor em Apostas de Ténis — Torneios ATP (nomes completos automáticos)")
 
 if st.button("Atualizar dados agora"):
     st.cache_data.clear()
@@ -172,33 +188,33 @@ if elo_df is None or yelo_df is None:
     st.stop()
 st.success("Bases carregadas!")
 
-with st.spinner("Buscando torneios masculinos ATP ativos..."):
+with st.spinner("Detectando torneios ATP masculinos ativos..."):
     torneios = obter_torneios_atp_ativos()
-
 if not torneios:
-    st.warning("Nenhum torneio ATP ativo encontrado no momento.")
+    st.warning("Nenhum torneio ATP ativo encontrado neste momento.")
     st.stop()
 
 nome_torneio_escolhido = st.selectbox("Selecione o torneio ATP", [t["nome"] for t in torneios])
 url_torneio = next(t["url"] for t in torneios if t["nome"] == nome_torneio_escolhido)
 
-with st.spinner(f"Buscando jogos para {nome_torneio_escolhido}..."):
-    jogos = obter_jogos_do_torneio(url_torneio)
+with st.spinner(f"Buscando jogos para {nome_torneio_escolhido} com nomes completos..."):
+    jogos = obter_jogos_do_torneio_completos(url_torneio)
 
 if not jogos:
     st.warning(f"Nenhum jogo encontrado para o torneio {nome_torneio_escolhido}.")
     st.stop()
 
-confronto_selecionado = st.selectbox("Selecione o jogo", [j["label"] for j in jogos])
-selecionado = next(j for j in jogos if j["label"] == confronto_selecionado)
+label_selec = st.selectbox("Selecione o jogo", [j["label"] for j in jogos])
+selecionado = next(j for j in jogos if j["label"] == label_selec)
 
-# Entrada/ajuste das odds (preenchidas se disponíveis)
+# Odds já vêm preenchidas se disponíveis, mas permitem edição
 odd_a_input = st.number_input(f"Odd para {selecionado['jogador_a']}", value=selecionado['odd_a'] if selecionado['odd_a'] else 1.80, step=0.01)
 odd_b_input = st.number_input(f"Odd para {selecionado['jogador_b']}", value=selecionado['odd_b'] if selecionado['odd_b'] else 2.00, step=0.01)
 
 superficie_port = st.selectbox("Superfície", list(superficies_map.keys()), index=0)
 superficie = superficies_map[superficie_port]
 
+# Busca de dados Elo/yElo com nome completo
 dados_a = elo_df[elo_df["Player"] == selecionado["jogador_a"]]
 dados_b = elo_df[elo_df["Player"] == selecionado["jogador_b"]]
 
@@ -211,12 +227,10 @@ if dados_b.empty:
 
 dados_a = dados_a.iloc[0]
 dados_b = dados_b.iloc[0]
-
 yelo_a = encontrar_yelo(selecionado["jogador_a"], yelo_df)
 yelo_b = encontrar_yelo(selecionado["jogador_b"], yelo_df)
 
 col1, col2 = st.columns(2)
-
 with col1:
     try:
         geral_a = float(dados_a["Elo"])
@@ -226,7 +240,6 @@ with col1:
         st.metric(f"Elo Final {selecionado['jogador_a']}", f"{elo_final_a:.2f}")
     except Exception:
         st.warning(f"Elo Final do jogador {selecionado['jogador_a']} indisponível")
-
 with col2:
     try:
         geral_b = float(dados_b["Elo"])
@@ -295,7 +308,7 @@ with st.expander("Como funciona o cálculo?"):
     ```
     Elo Final = (Elo Superfície / Elo Geral) × yElo
     ```
-    Depois, calcula-se a probabilidade pelo modelo Elo e o valor esperado usando odds ajustadas para retirar o juice.
+    E o valor esperado é calculado usando odds ajustadas (sem juice).
     """)
 
 st.markdown("---")
