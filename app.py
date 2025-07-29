@@ -71,6 +71,13 @@ def encontrar_yelo(jogador, yelo_df):
         return yelo_df[yelo_df["Player"] == candidatos[0]]["yElo"].values[0]
     return None
 
+# Mapeamento superfície em português para chave interna
+superficies_map = {
+    "Piso Duro": "Hard",
+    "Relva": "Grass",
+    "Terra Batida": "Clay"
+}
+
 # --------------------- Interface Streamlit ---------------------
 st.title("Análise de Valor em Apostas de Ténis (Elo - Tennis Abstract)")
 
@@ -90,6 +97,13 @@ st.success("Dados carregados com sucesso!")
 
 jogadores_disponiveis = sorted(elo_df["Player"].dropna().unique())
 
+# Primeiro o selectbox da superfície (em português)
+superficie_port = st.selectbox("Superfície", options=list(superficies_map.keys()))
+
+# Mapeia para a chave usada internamente
+superficie = superficies_map[superficie_port]
+
+# Depois as colunas com os jogadores e odds
 col1, col2 = st.columns(2)
 
 with col1:
@@ -100,8 +114,6 @@ with col2:
     jogador_b = st.selectbox("Seleciona o Jogador B", jogadores_disponiveis, index=1)
     odd_b = st.number_input("Odd para o Jogador B", value=2.00, step=0.01)
 
-superficie = st.selectbox("Superfície", ["Hard", "Clay", "Grass"])
-
 if jogador_a and jogador_b and jogador_a != jogador_b:
     dados_a = elo_df[elo_df["Player"] == jogador_a].iloc[0]
     dados_b = elo_df[elo_df["Player"] == jogador_b].iloc[0]
@@ -109,7 +121,7 @@ if jogador_a and jogador_b and jogador_a != jogador_b:
     yelo_a = encontrar_yelo(jogador_a, yelo_df)
     yelo_b = encontrar_yelo(jogador_b, yelo_df)
 
-    # Bloco para mostrar Elo final abaixo das odds (com destaque)
+    # Mostrar o Elo final logo abaixo das odds, dentro das mesmas colunas
     with col1:
         try:
             geral_a = float(dados_a["Elo"])
@@ -130,7 +142,7 @@ if jogador_a and jogador_b and jogador_a != jogador_b:
         except Exception:
             st.warning("Elo Final Jogador B não disponível")
 
-    # Mostrar detalhes completos, com yElo incluído
+    # Mostrar detalhes completos dos jogadores com yElo
     with st.expander("Mostrar detalhes completos dos jogadores selecionados"):
         dados_a_exibir = dados_a.to_dict()
         dados_a_exibir["yElo"] = yelo_a
@@ -142,8 +154,7 @@ if jogador_a and jogador_b and jogador_a != jogador_b:
         st.markdown(f"### {jogador_b}")
         st.json(dados_b_exibir)
 
-    # Prosseguir só se yElo existem e valores numéricos
-    if None in [yelo_a, yelo_b]:
+    if yelo_a is None or yelo_b is None:
         st.error("Não foi possível encontrar o yElo de um dos jogadores.")
     else:
         try:
@@ -203,6 +214,3 @@ else:
 
 st.markdown("---")
 st.caption("Fonte dos dados: tennisabstract.com | Este app é experimental. Use com responsabilidade.")
-
-
-
