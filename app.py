@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+from difflib import get_close_matches
 
 # --------------------- Funções 
 def obter_elo_tabela():
@@ -47,6 +48,12 @@ def elo_prob(elo_a, elo_b):
 def value_bet(prob, odd):
     return (prob * odd) - 1
 
+def encontrar_yelo(jogador, yelo_df):
+    candidatos = get_close_matches(jogador, yelo_df["Player"], n=1, cutoff=0.7)
+    if candidatos:
+        return yelo_df[yelo_df["Player"] == candidatos[0]]["yElo"].values[0]
+    return None
+
 # --------------------- Interface Streamlit ---------------------
 st.title("Análise de Valor em Apostas de Ténis (Elo - Tennis Abstract)")
 
@@ -74,15 +81,12 @@ if jogador_a and jogador_b:
     dados_a = elo_df[elo_df["Player"] == jogador_a].iloc[0]
     dados_b = elo_df[elo_df["Player"] == jogador_b].iloc[0]
 
-    yelo_val_a = yelo_df[yelo_df["Player"] == jogador_a]["yElo"]
-    yelo_val_b = yelo_df[yelo_df["Player"] == jogador_b]["yElo"]
+    yelo_a = encontrar_yelo(jogador_a, yelo_df)
+    yelo_b = encontrar_yelo(jogador_b, yelo_df)
 
-    if yelo_val_a.empty or yelo_val_b.empty:
+    if yelo_a is None or yelo_b is None:
         st.error("Não foi possível encontrar o yElo de um dos jogadores.")
     else:
-        yelo_a = yelo_val_a.values[0]
-        yelo_b = yelo_val_b.values[0]
-
         elo_chave = {
             "Hard": "hElo",
             "Clay": "cElo",
