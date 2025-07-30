@@ -311,12 +311,7 @@ with st.expander("Detalhes completos Elo/yElo dos jogadores"):
     st.write(f"**{selecionado['jogador_b']}:**")
     st.json(dados_b.to_dict())
     st.write(f"**yElo:** {yelo_b}")
-    st.write("""
-    O Elo final é calculado com:
-    ```
-    Elo Final = (Elo Superfície / Elo Geral) × yElo
-    ```
-    """)
+
 if yelo_a is None or yelo_b is None:
     st.error("Não foi possível encontrar o yElo de um dos jogadores.")
     st.stop()
