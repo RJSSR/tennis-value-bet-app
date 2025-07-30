@@ -8,7 +8,6 @@ import importlib.util
 
 BASE_URL = "https://www.tennisexplorer.com"
 
-# ----- Verificar dependência html5lib -----
 if importlib.util.find_spec("html5lib") is None:
     st.error(
         "Dependência obrigatória não encontrada: 'html5lib'.\n"
@@ -16,24 +15,22 @@ if importlib.util.find_spec("html5lib") is None:
     )
     st.stop()
 
-# Função para limpar número de ranking dos nomes
 def limpar_numero_ranking(nome):
     return re.sub(r"\s*\(\d+\)", "", nome).strip()
 
-# Função para remover " - profile" e inverter "Apelido - Nome" → "Nome Apelido"
 def ajustar_nome(nome_raw):
-    # Remove sufixo " - profile"
     nome_sem_profile = nome_raw.replace(" - profile", "").strip()
-    # Divide pelo separador " - "
     partes = nome_sem_profile.split(" - ")
     if len(partes) == 2:
-        # Inverte a ordem para Nome Apelido
-        nome_corrigido = partes[1].strip() + " " + partes[0].strip()
-    else:
-        nome_corrigido = nome_sem_profile
-    return nome_corrigido
+        return f"{partes[1].strip()} {partes[0].strip()}"
+    return nome_sem_profile
 
-# Função para buscar torneios ATP ativos
+def inverter_ordem_nome(nome):
+    partes = nome.strip().split(' ')
+    if len(partes) == 2:
+        return f"{partes[1]} {partes[0]}"
+    return nome
+
 def obter_torneios_atp_ativos():
     url = f"{BASE_URL}/matches/"
     r = requests.get(url)
@@ -49,7 +46,20 @@ def obter_torneios_atp_ativos():
             torneios.append({"nome": nome, "url": url_completo})
     return torneios
 
-# Função para obter jogos do torneio com nomes corrigidos
+@st.cache_data(show_spinner=False)
+def obter_nome_completo(url_jogador):
+    try:
+        r = requests.get(url_jogador, timeout=15)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.content, "html.parser")
+        h1 = soup.find("h1")
+        if h1:
+            nome = re.sub(r'\s+', ' ', h1.get_text(strip=True))
+            return nome
+    except:
+        pass
+    return None
+
 @st.cache_data(show_spinner=False)
 def obter_jogos_do_torneio_completos(url_torneio):
     jogos = []
@@ -61,14 +71,11 @@ def obter_jogos_do_torneio_completos(url_torneio):
         return jogos
 
     jogadores_links = []
-
-    # Captura links dos jogadores para pegar nomes corretos
     for a in soup.select("a[href^='/player/']"):
         nome = a.text.strip()
         url_jogador = BASE_URL + a['href']
         jogadores_links.append((nome, url_jogador))
-
-    mapa_links = dict(jogadores_links)  # nome abreviado para url perfil jogador
+    mapa_links = dict(jogadores_links)
 
     for table in tabelas:
         tbody = table.find("tbody")
@@ -94,16 +101,14 @@ def obter_jogos_do_torneio_completos(url_torneio):
             nome_red_a = limpar_numero_ranking(partes[0].strip())
             nome_red_b = limpar_numero_ranking(partes[1].strip())
 
-            # Pega URLs de perfil para pegar nomes completos
             url_jog_a = mapa_links.get(nome_red_a)
             url_jog_b = mapa_links.get(nome_red_b)
 
             nome_completo_a = obter_nome_completo(url_jog_a) if url_jog_a else nome_red_a
             nome_completo_b = obter_nome_completo(url_jog_b) if url_jog_b else nome_red_b
 
-            # Ajuste final dos nomes (remove " - profile" e inverte ordem)
-            nome_final_a = ajustar_nome(nome_completo_a)
-            nome_final_b = ajustar_nome(nome_completo_b)
+            nome_final_a = inverter_ordem_nome(ajustar_nome(nome_completo_a))
+            nome_final_b = inverter_ordem_nome(ajustar_nome(nome_completo_b))
 
             jogos.append({
                 "label": f"{nome_final_a} vs {nome_final_b}",
@@ -116,22 +121,6 @@ def obter_jogos_do_torneio_completos(url_torneio):
             break
     return jogos
 
-# Função cacheada para obter nome completo (usa cache para melhorar performance)
-@st.cache_data(show_spinner=False)
-def obter_nome_completo(url_jogador):
-    try:
-        r = requests.get(url_jogador, timeout=15)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.content, "html.parser")
-        h1 = soup.find("h1")
-        if h1:
-            nome = re.sub(r'\s+', ' ', h1.get_text(strip=True))
-            return nome
-    except:
-        pass
-    return None
-
-# Funções para obter Elo e yElo
 def obter_elo_tabela():
     url = "https://tennisabstract.com/reports/atp_elo_ratings.html"
     try:
@@ -194,8 +183,6 @@ superficies_map = {
     "Relva": "Grass",
     "Terra Batida": "Clay"
 }
-
-# --- Streamlit app ---
 
 st.title("Análise de Valor em Apostas de Ténis — Torneios ATP (Nomes completos e ordem corrigidos)")
 
@@ -295,7 +282,6 @@ elo_final_b = (esp_b / geral_b) * yelo_b_f
 prob_a = elo_prob(elo_final_a, elo_final_b)
 prob_b = 1 - prob_a
 
-# Remoção do juice
 prob_a_raw = 1 / odd_a
 prob_b_raw = 1 / odd_b
 soma_prob = prob_a_raw + prob_b_raw
