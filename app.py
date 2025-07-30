@@ -311,7 +311,12 @@ with st.expander("Detalhes completos Elo/yElo dos jogadores"):
     st.write(f"**{selecionado['jogador_b']}:**")
     st.json(dados_b.to_dict())
     st.write(f"**yElo:** {yelo_b}")
-
+    st.write("""
+    O Elo final é calculado com:
+    ```
+    Elo Final = (Elo Superfície / Elo Geral) × yElo
+    ```
+    """)
 if yelo_a is None or yelo_b is None:
     st.error("Não foi possível encontrar o yElo de um dos jogadores.")
     st.stop()
@@ -349,7 +354,7 @@ col_a, col_b = st.columns(2)
 with col_a:
     st.metric("Probabilidade A vencer", f"{prob_a * 100:.2f}%")
     st.metric("Valor esperado A", f"{valor_a * 100:.2f}%")
-    if odd_a >= 1.45 and 0.03 <= valor_a <= 0.20:
+    if odd_a >= 1.45 and 0.03 <= valor_a <= 0.25:
         st.success("Valor positivo ✅")
     else:
         st.error("Sem valor ❌")
@@ -357,7 +362,7 @@ with col_a:
 with col_b:
     st.metric("Probabilidade B vencer", f"{prob_b * 100:.2f}%")
     st.metric("Valor esperado B", f"{valor_b * 100:.2f}%")
-    if odd_b >= 1.45 and 0.03 <= valor_b <= 0.20:
+    if odd_b >= 1.45 and 0.03 <= valor_b <= 0.25:
         st.success("Valor positivo ✅")
     else:
         st.error("Sem valor ❌")
