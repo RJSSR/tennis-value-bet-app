@@ -368,7 +368,7 @@ col_a, col_b = st.columns(2)
 with col_a:
     st.metric("Probabilidade A vencer", f"{prob_a * 100:.2f}%")
     st.metric("Valor esperado A", f"{valor_a * 100:.2f}%")
-    if odd_a >= 1.45 and 0.03 <= valor_a <= 0.25:
+    if 3.00 >= odd_a >= 1.45 and 0.03 <= valor_a <= 0.25:
         st.success("Valor positivo ✅")
     else:
         st.error("Sem valor ❌")
@@ -376,7 +376,7 @@ with col_a:
 with col_b:
     st.metric("Probabilidade B vencer", f"{prob_b * 100:.2f}%")
     st.metric("Valor esperado B", f"{valor_b * 100:.2f}%")
-    if odd_b >= 1.45 and 0.03 <= valor_b <= 0.25:
+    if 3.00 >= odd_b >= 1.45 and 0.03 <= valor_b <= 0.25:
         st.success("Valor positivo ✅")
     else:
         st.error("Sem valor ❌")
