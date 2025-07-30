@@ -368,7 +368,7 @@ with col_b:
         st.error("Sem valor ❌")
 
 with st.expander("Como funciona o cálculo?"):
-st.write("---")
+    st.write("---")
     st.markdown(r"""
     ## Como funciona o cálculo?
 
