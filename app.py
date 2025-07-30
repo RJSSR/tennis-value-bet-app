@@ -4,16 +4,20 @@ import requests
 from bs4 import BeautifulSoup
 import re
 from difflib import get_close_matches
+import unicodedata
 import importlib.util
 
 BASE_URL = "https://www.tennisexplorer.com"
 
+# --- Dependência html5lib ---
 if importlib.util.find_spec("html5lib") is None:
     st.error(
         "Dependência obrigatória não encontrada: 'html5lib'.\n"
-        "Execute `pip install html5lib` no terminal antes de usar o aplicativo."
+        "Execute `pip install html5lib` no terminal."
     )
     st.stop()
+
+# ---------- HELPERS PARA NOMES ----------
 
 def limpar_numero_ranking(nome):
     return re.sub(r"\s*\(\d+\)", "", nome).strip()
@@ -31,12 +35,21 @@ def inverter_ordem_nome(nome):
         return f"{partes[1]} {partes[0]}"
     return nome
 
+def normalizar_nome(nome):
+    # Remove acentos e normaliza para lowercase (robustez extra)
+    s = ''.join(
+        c for c in unicodedata.normalize('NFD', nome)
+        if unicodedata.category(c) != 'Mn'
+    )
+    return s.strip().casefold()
+
+# ----------- SCRAPING -----------
+
 def obter_torneios_atp_ativos():
     url = f"{BASE_URL}/matches/"
     r = requests.get(url)
     r.raise_for_status()
     soup = BeautifulSoup(r.content, "html.parser")
-
     torneios = []
     for a in soup.select("a[href*='/atp-men/']"):
         nome = a.text.strip()
@@ -107,6 +120,7 @@ def obter_jogos_do_torneio_completos(url_torneio):
             nome_completo_a = obter_nome_completo(url_jog_a) if url_jog_a else nome_red_a
             nome_completo_b = obter_nome_completo(url_jog_b) if url_jog_b else nome_red_b
 
+            # Ajusta sufixos e ordem e GIRA nome: "Sobrenome Nome" => "Nome Sobrenome"
             nome_final_a = inverter_ordem_nome(ajustar_nome(nome_completo_a))
             nome_final_b = inverter_ordem_nome(ajustar_nome(nome_completo_b))
 
@@ -120,6 +134,8 @@ def obter_jogos_do_torneio_completos(url_torneio):
         if jogos:
             break
     return jogos
+
+# ----------- ELO / YELO -----------
 
 def obter_elo_tabela():
     url = "https://tennisabstract.com/reports/atp_elo_ratings.html"
@@ -170,13 +186,37 @@ def elo_prob(elo_a, elo_b):
 def value_bet(prob, odd):
     return (prob * odd) - 1
 
-def encontrar_yelo(jogador, yelo_df):
-    if jogador in yelo_df["Player"].values:
-        return yelo_df[yelo_df["Player"] == jogador]["yElo"].values[0]
-    candidatos = get_close_matches(jogador, yelo_df["Player"], n=1, cutoff=0.7)
-    if candidatos:
-        return yelo_df[yelo_df["Player"] == candidatos[0]]["yElo"].values[0]
+def encontrar_yelo(nome, yelo_df):
+    # Igual ao robusto matching abaixo, mas para yElo
+    nome_cmp = normalizar_nome(nome)
+    yelolist = [normalizar_nome(p) for p in yelo_df["Player"].dropna()]
+    for idx, norm in enumerate(yelolist):
+        if nome_cmp == norm:
+            return yelo_df["yElo"].iloc[idx]
+    match = get_close_matches(nome_cmp, yelolist, n=1, cutoff=0.80)
+    if match:
+        idx = yelolist.index(match[0])
+        return yelo_df["yElo"].iloc[idx]
     return None
+
+def match_nome(nome, df_col):
+    # Tenta match exato (case-insensitive, spaces e sem acento)
+    nome_base = normalizar_nome(nome)
+    possiveis_norm = df_col.dropna().map(normalizar_nome)
+    mask = possiveis_norm == nome_base
+    if mask.any():
+        idx = mask[mask].index[0]
+        return idx
+
+    # Tenta match fuzzy se exato falhar
+    lista_nomes = possiveis_norm.tolist()
+    match = get_close_matches(nome_base, lista_nomes, n=1, cutoff=0.80)
+    if match:
+        idx = lista_nomes.index(match[0])
+        return df_col.index[idx]
+    return None
+
+# ----------- SUPERFÍCIE -----------
 
 superficies_map = {
     "Piso Duro": "Hard",
@@ -184,7 +224,9 @@ superficies_map = {
     "Terra Batida": "Clay"
 }
 
-st.title("Análise de Valor em Apostas de Ténis — Torneios ATP (Nomes completos e ordem corrigidos)")
+# ----------- STREAMLIT APP -----------
+
+st.title("Análise de Valor em Apostas de Ténis — Torneios ATP (matching de nomes robusto)")
 
 if st.button("Atualizar dados agora"):
     st.cache_data.clear()
@@ -207,7 +249,7 @@ if not torneios:
 nome_torneio = st.selectbox("Selecione o torneio ATP", [t["nome"] for t in torneios])
 url_torneio = next(t["url"] for t in torneios if t["nome"] == nome_torneio)
 
-with st.spinner(f"Obtendo jogos para {nome_torneio} com nomes completos e ajustados..."):
+with st.spinner(f"Obtendo jogos para {nome_torneio}..."):
     jogos = obter_jogos_do_torneio_completos(url_torneio)
 
 if not jogos:
@@ -223,24 +265,27 @@ odd_b = st.number_input(f"Odd para {selecionado['jogador_b']}", value=selecionad
 superficie_port = st.selectbox("Superfície", list(superficies_map.keys()), index=0)
 superficie = superficies_map[superficie_port]
 
-dados_a = elo_df[elo_df["Player"] == selecionado["jogador_a"]]
-dados_b = elo_df[elo_df["Player"] == selecionado["jogador_b"]]
+# ----------- Robust MATCH Nome para EloDataFrame -----------
 
-if dados_a.empty:
+idx_a = match_nome(selecionado["jogador_a"], elo_df["Player"])
+idx_b = match_nome(selecionado["jogador_b"], elo_df["Player"])
+
+if idx_a is None:
     st.error(f"Nenhum dado Elo encontrado para jogador: {selecionado['jogador_a']}")
+    st.write(f"Nomes disponíveis na base: {elo_df['Player'].unique().tolist()}")
     st.stop()
-if dados_b.empty:
+if idx_b is None:
     st.error(f"Nenhum dado Elo encontrado para jogador: {selecionado['jogador_b']}")
+    st.write(f"Nomes disponíveis na base: {elo_df['Player'].unique().tolist()}")
     st.stop()
 
-dados_a = dados_a.iloc[0]
-dados_b = dados_b.iloc[0]
+dados_a = elo_df.loc[idx_a]
+dados_b = elo_df.loc[idx_b]
 
 yelo_a = encontrar_yelo(selecionado["jogador_a"], yelo_df)
 yelo_b = encontrar_yelo(selecionado["jogador_b"], yelo_df)
 
 col1, col2 = st.columns(2)
-
 with col1:
     try:
         geral_a = float(dados_a["Elo"])
@@ -250,7 +295,6 @@ with col1:
         st.metric(f"Elo Final {selecionado['jogador_a']}", f"{elo_final_a:.2f}")
     except Exception:
         st.warning(f"Elo Final do jogador {selecionado['jogador_a']} indisponível")
-
 with col2:
     try:
         geral_b = float(dados_b["Elo"])
@@ -314,12 +358,12 @@ with col_b:
 
 with st.expander("Como funciona o cálculo?"):
     st.write("""
-    O Elo final de cada jogador é calculado com:
+    O Elo final é calculado com:
     ```
     Elo Final = (Elo Superfície / Elo Geral) × yElo
     ```
-    E o valor esperado é calculado considerando odds ajustadas para retirada do juice (margem da casa).
+    O valor esperado usa odds ajustadas para juice (margem da casa removida).
     """)
 
 st.markdown("---")
-st.caption("Fontes: tennisabstract.com e tennisexplorer.com | App experimental")
+st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental")
