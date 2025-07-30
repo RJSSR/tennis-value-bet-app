@@ -9,8 +9,8 @@ import importlib.util
 
 BASE_URL = "https://www.tennisexplorer.com"
 
-# Lista rigorosa dos torneios permitidos — exata correspondência (case insensitive)
 TORNEIOS_PERMITIDOS = [
+    # ... ( tua lista completa )
     "Acapulco", "Adelaide", "Adelaide 2", "Almaty", "Antwerp", "Astana", "Atlanta", "ATP Cup",
     "Auckland", "Australian Open", "Banja Luka", "Barcelona", "Basel", "Bastad", "Beijing",
     "Belgrade", "Belgrade 2", "Brisbane", "Bucharest", "Buenos Aires", "Chengdu", "Cincinnati",
@@ -25,15 +25,13 @@ TORNEIOS_PERMITIDOS = [
     "Umag", "United Cup", "US Open", "Vienna", "Washington", "Wimbledon", "Winston Salem", "Zhuhai"
 ]
 
-# Verifica se o html5lib está instalado
 if importlib.util.find_spec("html5lib") is None:
     st.error(
         "Dependência obrigatória não encontrada: 'html5lib'.\n"
-        "Execute `pip install html5lib` para continuar."
+        "Execute `pip install html5lib` no terminal antes de usar o aplicativo."
     )
     st.stop()
 
-# Funções auxiliares para nomes
 def limpar_numero_ranking(nome):
     return re.sub(r"\s*\(\d+\)", "", nome).strip()
 
@@ -60,16 +58,13 @@ def normalizar_nome(nome):
     )
     return s.strip().casefold()
 
-# Extrai torneios masculinos ATP ativos com filtro exato por nome
 def obter_torneios_atp_ativos():
     url = f"{BASE_URL}/matches/"
     r = requests.get(url)
     r.raise_for_status()
     soup = BeautifulSoup(r.content, "html.parser")
-
     torneios = []
     nomes_permitidos = [tp.lower() for tp in TORNEIOS_PERMITIDOS]
-
     for a in soup.select("a[href*='/atp-men/']"):
         nome = a.text.strip()
         href = a['href']
@@ -101,18 +96,15 @@ def obter_jogos_do_torneio_completos(url_torneio):
     r = requests.get(url_torneio)
     r.raise_for_status()
     soup = BeautifulSoup(r.content, "html.parser")
-
     tabelas = soup.select("table")
     if not tabelas:
         return jogos
-
     jogadores_links = []
     for a in soup.select("a[href^='/player/']"):
         nome = a.text.strip()
         url_jogador = BASE_URL + a['href']
         jogadores_links.append((nome, url_jogador))
     mapa_links = dict(jogadores_links)
-
     for table in tabelas:
         tbody = table.find("tbody")
         if not tbody:
@@ -121,7 +113,6 @@ def obter_jogos_do_torneio_completos(url_torneio):
             tds = tr.find_all("td")
             if len(tds) < 7:
                 continue
-
             confronto = tds[2].text.strip()
             try:
                 odd_a = float(tds[5].text.strip())
@@ -129,23 +120,17 @@ def obter_jogos_do_torneio_completos(url_torneio):
             except:
                 odd_a = None
                 odd_b = None
-
             partes = confronto.split('-')
             if len(partes) != 2:
                 continue
-
             nome_red_a = limpar_numero_ranking(partes[0].strip())
             nome_red_b = limpar_numero_ranking(partes[1].strip())
-
             url_jog_a = mapa_links.get(nome_red_a)
             url_jog_b = mapa_links.get(nome_red_b)
-
             nome_completo_a = obter_nome_completo(url_jog_a) if url_jog_a else nome_red_a
             nome_completo_b = obter_nome_completo(url_jog_b) if url_jog_b else nome_red_b
-
             nome_final_a = reorganizar_nome(ajustar_nome(nome_completo_a))
             nome_final_b = reorganizar_nome(ajustar_nome(nome_completo_b))
-
             jogos.append({
                 "label": f"{nome_final_a} vs {nome_final_b}",
                 "jogador_a": nome_final_a,
@@ -258,8 +243,13 @@ if not torneios:
     st.warning("Nenhum torneio ATP ativo encontrado no momento.")
     st.stop()
 
-nome_torneio = st.selectbox("Selecione o torneio ATP", [t["nome"] for t in torneios])
+# SELETOR DO TORNEIO ATP
+nome_torneio = st.selectbox("A escolher o torneio ATP", [t["nome"] for t in torneios])
 url_torneio = next(t["url"] for t in torneios if t["nome"] == nome_torneio)
+
+# SELETOR DO PISO LOGO A SEGUIR
+superficie_port = st.selectbox("A escolher o piso do torneio", list(superficies_map.keys()), index=0)
+superficie = superficies_map[superficie_port]
 
 with st.spinner(f"Obtendo jogos para {nome_torneio}..."):
     jogos = obter_jogos_do_torneio_completos(url_torneio)
@@ -273,9 +263,6 @@ selecionado = next(j for j in jogos if j["label"] == selecionado_label)
 
 odd_a = st.number_input(f"Odd para {selecionado['jogador_a']}", value=selecionado['odd_a'] if selecionado['odd_a'] else 1.80, step=0.01)
 odd_b = st.number_input(f"Odd para {selecionado['jogador_b']}", value=selecionado['odd_b'] if selecionado['odd_b'] else 2.00, step=0.01)
-
-superficie_port = st.selectbox("Superfície", list(superficies_map.keys()), index=0)
-superficie = superficies_map[superficie_port]
 
 idx_a = match_nome(selecionado["jogador_a"], elo_df["Player"])
 idx_b = match_nome(selecionado["jogador_b"], elo_df["Player"])
@@ -315,6 +302,16 @@ with col2:
     except Exception:
         st.warning(f"Elo Final do jogador {selecionado['jogador_b']} indisponível")
 
+# Detalhes completos do Elo/yElo dos jogadores
+with st.expander("Detalhes completos Elo/yElo dos jogadores"):
+    st.write(f"**{selecionado['jogador_a']}:**")
+    st.json(dados_a.to_dict())
+    st.write(f"**yElo:** {yelo_a}")
+    st.write("---")
+    st.write(f"**{selecionado['jogador_b']}:**")
+    st.json(dados_b.to_dict())
+    st.write(f"**yElo:** {yelo_b}")
+
 if yelo_a is None or yelo_b is None:
     st.error("Não foi possível encontrar o yElo de um dos jogadores.")
     st.stop()
@@ -329,14 +326,12 @@ try:
 except (ValueError, TypeError, KeyError) as e:
     st.error(f"Erro ao obter valores numéricos para cálculo: {e}")
     st.stop()
-
 elo_final_a = (esp_a / geral_a) * yelo_a_f
 elo_final_b = (esp_b / geral_b) * yelo_b_f
 
 prob_a = elo_prob(elo_final_a, elo_final_b)
 prob_b = 1 - prob_a
 
-# Ajuste odds para remoção do juice (margem da casa)
 prob_a_raw = 1 / odd_a
 prob_b_raw = 1 / odd_b
 soma_prob = prob_a_raw + prob_b_raw
@@ -373,7 +368,7 @@ with st.expander("Como funciona o cálculo?"):
     ```
     Elo Final = (Elo Superfície / Elo Geral) × yElo
     ```
-    O valor esperado é calculado usando odds ajustadas para remoção do juice (margem da casa).
+    O valor esperado é calculado usando odds ajustadas para retirada do juice (margem da casa).
     """)
 
 st.markdown("---")
