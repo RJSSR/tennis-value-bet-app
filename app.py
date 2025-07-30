@@ -9,7 +9,7 @@ import importlib.util
 
 BASE_URL = "https://www.tennisexplorer.com"
 
-# Lista dos torneios ATP permitidos para seleção no app
+# Lista dos torneios ATP permitidos
 TORNEIOS_PERMITIDOS = [
     "Acapulco", "Adelaide", "Adelaide 2", "Almaty", "Antwerp", "Astana", "Atlanta", "ATP Cup",
     "Auckland", "Australian Open", "Banja Luka", "Barcelona", "Basel", "Bastad", "Beijing",
@@ -29,11 +29,11 @@ TORNEIOS_PERMITIDOS = [
 if importlib.util.find_spec("html5lib") is None:
     st.error(
         "Dependência obrigatória não encontrada: 'html5lib'.\n"
-        "Execute `pip install html5lib` antes de rodar o app."
+        "Execute `pip install html5lib` no terminal antes de usar o aplicativo."
     )
     st.stop()
 
-# ---------- Funções para tratar nomes ----------
+# Funções para tratamento de nomes
 def limpar_numero_ranking(nome):
     return re.sub(r"\s*\(\d+\)", "", nome).strip()
 
@@ -44,11 +44,15 @@ def ajustar_nome(nome_raw):
         return f"{partes[1].strip()} {partes[0].strip()}"
     return nome_sem_profile
 
-def inverter_ordem_nome(nome):
-    partes = nome.strip().split(' ')
+def reorganizar_nome(nome):
+    partes = nome.strip().split()
     if len(partes) == 2:
-        return f"{partes[1]} {partes[0]}"
-    return nome
+        return nome  # Mantém igual
+    elif len(partes) == 3:
+        # Move ultima parte para primeiro lugar
+        return f"{partes[2]} {partes[0]} {partes[1]}"
+    else:
+        return nome  # Mantém original para outros casos
 
 def normalizar_nome(nome):
     s = ''.join(
@@ -57,18 +61,19 @@ def normalizar_nome(nome):
     )
     return s.strip().casefold()
 
-# ---------- Scraping ----------
+# Funções para scraping
 def obter_torneios_atp_ativos():
     url = f"{BASE_URL}/matches/"
     r = requests.get(url)
     r.raise_for_status()
     soup = BeautifulSoup(r.content, "html.parser")
+
     torneios = []
     for a in soup.select("a[href*='/atp-men/']"):
         nome = a.text.strip()
         href = a['href']
         url_completo = BASE_URL + href if href.startswith('/') else href
-        # Filtrar pelo nome permitido (case insensitive)
+        # Filtrar pelo nome permitido (case-insensitive substring)
         if any(tp.lower() in nome.lower() for tp in TORNEIOS_PERMITIDOS):
             if url_completo not in [t['url'] for t in torneios]:
                 torneios.append({"nome": nome, "url": url_completo})
@@ -137,8 +142,8 @@ def obter_jogos_do_torneio_completos(url_torneio):
             nome_completo_a = obter_nome_completo(url_jog_a) if url_jog_a else nome_red_a
             nome_completo_b = obter_nome_completo(url_jog_b) if url_jog_b else nome_red_b
 
-            nome_final_a = inverter_ordem_nome(ajustar_nome(nome_completo_a))
-            nome_final_b = inverter_ordem_nome(ajustar_nome(nome_completo_b))
+            nome_final_a = reorganizar_nome(ajustar_nome(nome_completo_a))
+            nome_final_b = reorganizar_nome(ajustar_nome(nome_completo_b))
 
             jogos.append({
                 "label": f"{nome_final_a} vs {nome_final_b}",
@@ -151,7 +156,7 @@ def obter_jogos_do_torneio_completos(url_torneio):
             break
     return jogos
 
-# ---------- Funções Elo/yElo ----------
+# Funções para dados Elo e yElo
 def obter_elo_tabela():
     url = "https://tennisabstract.com/reports/atp_elo_ratings.html"
     try:
@@ -233,8 +238,8 @@ superficies_map = {
     "Terra Batida": "Clay"
 }
 
-# ---------- App Streamlit ----------
-st.title("Análise de Valor em Apostas de Ténis — Torneios ATP (Nomes completos invertidos)")
+# --- App Streamlit ---
+st.title("Análise de Valor em Apostas de Ténis — Torneios ATP")
 
 if st.button("Atualizar dados agora"):
     st.cache_data.clear()
@@ -247,7 +252,7 @@ with st.spinner("Carregando bases Elo e yElo..."):
 if elo_df is None or yelo_df is None:
     st.stop()
 
-with st.spinner("Detectando torneios ATP masculinos ativos..."):
+with st.spinner("Detectando torneios ATP ativos permitidos..."):
     torneios = obter_torneios_atp_ativos()
 
 if not torneios:
@@ -332,6 +337,7 @@ elo_final_b = (esp_b / geral_b) * yelo_b_f
 prob_a = elo_prob(elo_final_a, elo_final_b)
 prob_b = 1 - prob_a
 
+# Remover juice das odds do bookie antes do cálculo valor esperado
 prob_a_raw = 1 / odd_a
 prob_b_raw = 1 / odd_b
 soma_prob = prob_a_raw + prob_b_raw
@@ -368,7 +374,7 @@ with st.expander("Como funciona o cálculo?"):
     ```
     Elo Final = (Elo Superfície / Elo Geral) × yElo
     ```
-    O valor esperado é calculado usando odds ajustadas para retirar o juice.
+    O valor esperado é calculado usando odds ajustadas para remoção do juice (margem da casa).
     """)
 
 st.markdown("---")
