@@ -368,12 +368,28 @@ with col_b:
         st.error("Sem valor ❌")
 
 with st.expander("Como funciona o cálculo?"):
-    st.write("""
-    O Elo final é calculado com:
-    ```
-    Elo Final = (Elo Superfície / Elo Geral) × yElo
-    ```
-    O valor esperado é calculado usando odds ajustadas para retirada do juice (margem da casa).
+ st.write("""
+    ## Como funciona o cálculo?
+
+    O sistema Elo estima a força relativa dos jogadores em confrontos diretos. A probabilidade do Jogador A vencer o Jogador B é:
+
+    \[
+    P(A) = \frac{1}{1 + 10^{\frac{Elo_B - Elo_A}{400}}}
+    \]
+
+    O Elo final de cada jogador é ajustado considerando a superfície e o yElo (atualização de desempenho recente):
+
+    \[
+    Elo_{final} = \left(\frac{Elo_{superfície}}{Elo_{geral}}\right) \times yElo
+    \]
+
+    O valor esperado da aposta é calculado removendo a margem da casa (juice) das odds, assim:
+
+    \[
+    \text{Valor esperado} = (\text{Probabilidade} \times \text{Odd ajustada}) - 1
+    \]
+
+    Um valor esperado positivo indica vantagem estatística para a aposta.
     """)
 
 st.markdown("---")
