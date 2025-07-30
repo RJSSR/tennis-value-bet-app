@@ -9,16 +9,31 @@ import importlib.util
 
 BASE_URL = "https://www.tennisexplorer.com"
 
-# --- Dependência html5lib ---
+# Lista dos torneios ATP permitidos para seleção no app
+TORNEIOS_PERMITIDOS = [
+    "Acapulco", "Adelaide", "Adelaide 2", "Almaty", "Antwerp", "Astana", "Atlanta", "ATP Cup",
+    "Auckland", "Australian Open", "Banja Luka", "Barcelona", "Basel", "Bastad", "Beijing",
+    "Belgrade", "Belgrade 2", "Brisbane", "Bucharest", "Buenos Aires", "Chengdu", "Cincinnati",
+    "Cordoba", "Dallas", "Delray Beach", "Doha", "Dubai", "Eastbourne", "Estoril", "Florence",
+    "French Open", "Geneva", "Gijon", "Gstaad", "Halle", "Hamburg", "Hangzhou",
+    "Hertogenbosch", "Hong Kong ATP", "Houston", "Indian Wells", "Kitzbühel", "Los Cabos",
+    "Lyon", "Madrid", "Mallorca", "Marrakech", "Marseille", "Masters Cup ATP", "Melbourne Summer Set 1",
+    "Metz", "Miami", "Monte Carlo", "Montpellier", "Montreal", "Moscow", "Munich", "Napoli",
+    "Newport", "Next Gen ATP Finals", "Paris", "Parma", "Pune", "Queen's Club", "Rio de Janeiro",
+    "Rome", "Rotterdam", "Saint Petersburg", "San Diego", "Santiago", "Seoul", "Shanghai",
+    "Sofia", "Stockholm", "Stuttgart", "Sydney", "Tel Aviv", "Tokyo (Japan Open)", "Toronto",
+    "Umag", "United Cup", "US Open", "Vienna", "Washington", "Wimbledon", "Winston Salem", "Zhuhai"
+]
+
+# ----- Verificar dependência html5lib -----
 if importlib.util.find_spec("html5lib") is None:
     st.error(
         "Dependência obrigatória não encontrada: 'html5lib'.\n"
-        "Execute `pip install html5lib` no terminal."
+        "Execute `pip install html5lib` antes de rodar o app."
     )
     st.stop()
 
-# ---------- HELPERS PARA NOMES ----------
-
+# ---------- Funções para tratar nomes ----------
 def limpar_numero_ranking(nome):
     return re.sub(r"\s*\(\d+\)", "", nome).strip()
 
@@ -36,15 +51,13 @@ def inverter_ordem_nome(nome):
     return nome
 
 def normalizar_nome(nome):
-    # Remove acentos e normaliza para lowercase (robustez extra)
     s = ''.join(
         c for c in unicodedata.normalize('NFD', nome)
         if unicodedata.category(c) != 'Mn'
     )
     return s.strip().casefold()
 
-# ----------- SCRAPING -----------
-
+# ---------- Scraping ----------
 def obter_torneios_atp_ativos():
     url = f"{BASE_URL}/matches/"
     r = requests.get(url)
@@ -55,12 +68,16 @@ def obter_torneios_atp_ativos():
         nome = a.text.strip()
         href = a['href']
         url_completo = BASE_URL + href if href.startswith('/') else href
-        if url_completo not in [t['url'] for t in torneios]:
-            torneios.append({"nome": nome, "url": url_completo})
+        # Filtrar pelo nome permitido (case insensitive)
+        if any(tp.lower() in nome.lower() for tp in TORNEIOS_PERMITIDOS):
+            if url_completo not in [t['url'] for t in torneios]:
+                torneios.append({"nome": nome, "url": url_completo})
     return torneios
 
 @st.cache_data(show_spinner=False)
 def obter_nome_completo(url_jogador):
+    if not url_jogador:
+        return None
     try:
         r = requests.get(url_jogador, timeout=15)
         r.raise_for_status()
@@ -120,7 +137,6 @@ def obter_jogos_do_torneio_completos(url_torneio):
             nome_completo_a = obter_nome_completo(url_jog_a) if url_jog_a else nome_red_a
             nome_completo_b = obter_nome_completo(url_jog_b) if url_jog_b else nome_red_b
 
-            # Ajusta sufixos e ordem e GIRA nome: "Sobrenome Nome" => "Nome Sobrenome"
             nome_final_a = inverter_ordem_nome(ajustar_nome(nome_completo_a))
             nome_final_b = inverter_ordem_nome(ajustar_nome(nome_completo_b))
 
@@ -135,8 +151,7 @@ def obter_jogos_do_torneio_completos(url_torneio):
             break
     return jogos
 
-# ----------- ELO / YELO -----------
-
+# ---------- Funções Elo/yElo ----------
 def obter_elo_tabela():
     url = "https://tennisabstract.com/reports/atp_elo_ratings.html"
     try:
@@ -187,7 +202,6 @@ def value_bet(prob, odd):
     return (prob * odd) - 1
 
 def encontrar_yelo(nome, yelo_df):
-    # Igual ao robusto matching abaixo, mas para yElo
     nome_cmp = normalizar_nome(nome)
     yelolist = [normalizar_nome(p) for p in yelo_df["Player"].dropna()]
     for idx, norm in enumerate(yelolist):
@@ -200,15 +214,12 @@ def encontrar_yelo(nome, yelo_df):
     return None
 
 def match_nome(nome, df_col):
-    # Tenta match exato (case-insensitive, spaces e sem acento)
     nome_base = normalizar_nome(nome)
     possiveis_norm = df_col.dropna().map(normalizar_nome)
     mask = possiveis_norm == nome_base
     if mask.any():
         idx = mask[mask].index[0]
         return idx
-
-    # Tenta match fuzzy se exato falhar
     lista_nomes = possiveis_norm.tolist()
     match = get_close_matches(nome_base, lista_nomes, n=1, cutoff=0.80)
     if match:
@@ -216,17 +227,14 @@ def match_nome(nome, df_col):
         return df_col.index[idx]
     return None
 
-# ----------- SUPERFÍCIE -----------
-
 superficies_map = {
     "Piso Duro": "Hard",
     "Relva": "Grass",
     "Terra Batida": "Clay"
 }
 
-# ----------- STREAMLIT APP -----------
-
-st.title("Análise de Valor em Apostas de Ténis — Torneios ATP (matching de nomes robusto)")
+# ---------- App Streamlit ----------
+st.title("Análise de Valor em Apostas de Ténis — Torneios ATP (Nomes completos invertidos)")
 
 if st.button("Atualizar dados agora"):
     st.cache_data.clear()
@@ -264,8 +272,6 @@ odd_b = st.number_input(f"Odd para {selecionado['jogador_b']}", value=selecionad
 
 superficie_port = st.selectbox("Superfície", list(superficies_map.keys()), index=0)
 superficie = superficies_map[superficie_port]
-
-# ----------- Robust MATCH Nome para EloDataFrame -----------
 
 idx_a = match_nome(selecionado["jogador_a"], elo_df["Player"])
 idx_b = match_nome(selecionado["jogador_b"], elo_df["Player"])
@@ -362,7 +368,7 @@ with st.expander("Como funciona o cálculo?"):
     ```
     Elo Final = (Elo Superfície / Elo Geral) × yElo
     ```
-    O valor esperado usa odds ajustadas para juice (margem da casa removida).
+    O valor esperado é calculado usando odds ajustadas para retirar o juice.
     """)
 
 st.markdown("---")
