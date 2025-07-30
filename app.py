@@ -334,7 +334,54 @@ with st.expander("Detalhes completos Elo/yElo dos jogadores e explicação dos c
     Um valor esperado positivo indica vantagem estatística para a aposta.
     """, unsafe_allow_html=True)
 
-# BLOCO EXPANDÍVEL DA ANÁLISE AUTOMÁTICA DE TODOS OS JOGOS DO TORNEIO
+try:
+    geral_a = float(dados_a["Elo"])
+    geral_b = float(dados_b["Elo"])
+    esp_a = float(dados_a[{"Hard": "hElo", "Clay": "cElo", "Grass": "gElo"}[superficie]])
+    esp_b = float(dados_b[{"Hard": "hElo", "Clay": "cElo", "Grass": "gElo"}[superficie]])
+    yelo_a_f = float(yelo_a)
+    yelo_b_f = float(yelo_b)
+except (ValueError, TypeError, KeyError) as e:
+    st.error(f"Erro ao obter valores numéricos para cálculo: {e}")
+    st.stop()
+
+elo_final_a = (esp_a / geral_a) * yelo_a_f
+elo_final_b = (esp_b / geral_b) * yelo_b_f
+
+prob_a = elo_prob(elo_final_a, elo_final_b)
+prob_b = 1 - prob_a
+
+prob_a_raw = 1 / odd_a
+prob_b_raw = 1 / odd_b
+soma_prob = prob_a_raw + prob_b_raw
+prob_a_corr = prob_a_raw / soma_prob
+prob_b_corr = prob_b_raw / soma_prob
+odd_a_corr = 1 / prob_a_corr
+odd_b_corr = 1 / prob_b_corr
+
+valor_a = value_bet(prob_a, odd_a_corr)
+valor_b = value_bet(prob_b, odd_b_corr)
+
+st.markdown("---")
+col_a, col_b = st.columns(2)
+
+with col_a:
+    st.metric("Probabilidade A vencer", f"{prob_a * 100:.2f}%")
+    st.metric("Valor esperado A", f"{valor_a * 100:.2f}%")
+    if odd_a >= 1.45 and 0.03 <= valor_a <= 0.25:
+        st.success("Valor positivo ✅")
+    else:
+        st.error("Sem valor ❌")
+
+with col_b:
+    st.metric("Probabilidade B vencer", f"{prob_b * 100:.2f}%")
+    st.metric("Valor esperado B", f"{valor_b * 100:.2f}%")
+    if odd_b >= 1.45 and 0.03 <= valor_b <= 0.25:
+        st.success("Valor positivo ✅")
+    else:
+        st.error("Sem valor ❌")
+
+# Bloco da análise automática dentro do expander
 with st.expander("Análise automática: Jogos com valor esperado positivo"):
     if st.button("Analisar todos os jogos do torneio selecionado"):
         resultados = []
@@ -380,8 +427,8 @@ with st.expander("Análise automática: Jogos com valor esperado positivo"):
                 "Prob B": f"{prob_b*100:.2f}%",
                 "Valor Esp. A": f"{valor_a*100:.2f}%",
                 "Valor Esp. B": f"{valor_b*100:.2f}%",
-                "Valor A OK": valor_a >= 0.03 and valor_a <= 0.20 and odd_a >= 1.45,
-                "Valor B OK": valor_b >= 0.03 and valor_b <= 0.20 and odd_b >= 1.45,
+                "Valor A OK": valor_a >= 0.03 and valor_a <= 0.25 and odd_a >= 1.45 and odd_a <= 3.00,
+                "Valor B OK": valor_b >= 0.03 and valor_b <= 0.25 and odd_b >= 1.45 and odd_b <= 3.00,
             })
         df_valor = pd.DataFrame([r for r in resultados if r["Valor A OK"] or r["Valor B OK"]])
         if df_valor.empty:
