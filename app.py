@@ -368,29 +368,30 @@ with col_b:
         st.error("Sem valor ❌")
 
 with st.expander("Como funciona o cálculo?"):
- st.write("""
+st.write("---")
+    st.markdown(r"""
     ## Como funciona o cálculo?
 
     O sistema Elo estima a força relativa dos jogadores em confrontos diretos. A probabilidade do Jogador A vencer o Jogador B é:
 
-    \[
+    $$
     P(A) = \frac{1}{1 + 10^{\frac{Elo_B - Elo_A}{400}}}
-    \]
+    $$
 
     O Elo final de cada jogador é ajustado considerando a superfície e o yElo (atualização de desempenho recente):
 
-    \[
+    $$
     Elo_{final} = \left(\frac{Elo_{superfície}}{Elo_{geral}}\right) \times yElo
-    \]
+    $$
 
     O valor esperado da aposta é calculado removendo a margem da casa (juice) das odds, assim:
 
-    \[
+    $$
     \text{Valor esperado} = (\text{Probabilidade} \times \text{Odd ajustada}) - 1
-    \]
+    $$
 
     Um valor esperado positivo indica vantagem estatística para a aposta.
-    """)
+    """, unsafe_allow_html=True)
 
 st.markdown("---")
 st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental")
