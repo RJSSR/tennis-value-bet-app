@@ -9,7 +9,7 @@ import importlib.util
 
 BASE_URL = "https://www.tennisexplorer.com"
 
-# Lista dos torneios ATP permitidos
+# Lista dos torneios ATP permitidos (pode ampliar/ajustar conforme desejar)
 TORNEIOS_PERMITIDOS = [
     "Acapulco", "Adelaide", "Adelaide 2", "Almaty", "Antwerp", "Astana", "Atlanta", "ATP Cup",
     "Auckland", "Australian Open", "Banja Luka", "Barcelona", "Basel", "Bastad", "Beijing",
@@ -25,7 +25,7 @@ TORNEIOS_PERMITIDOS = [
     "Umag", "United Cup", "US Open", "Vienna", "Washington", "Wimbledon", "Winston Salem", "Zhuhai"
 ]
 
-# ----- Verificar dependência html5lib -----
+# Verificação da dependência html5lib
 if importlib.util.find_spec("html5lib") is None:
     st.error(
         "Dependência obrigatória não encontrada: 'html5lib'.\n"
@@ -47,21 +47,23 @@ def ajustar_nome(nome_raw):
 def reorganizar_nome(nome):
     partes = nome.strip().split()
     if len(partes) == 2:
-        return nome  # Mantém igual
+        # Em 2 partes, inverter a ordem: "Nome Apelido" -> "Apelido Nome"
+        return f"{partes[1]} {partes[0]}"
     elif len(partes) == 3:
-        # Move ultima parte para primeiro lugar
+        # Em 3 partes, mover a última para o primeiro lugar: "Nome1 Nome2 Nome3" -> "Nome3 Nome1 Nome2"
         return f"{partes[2]} {partes[0]} {partes[1]}"
     else:
         return nome  # Mantém original para outros casos
 
 def normalizar_nome(nome):
+    # Remove acentos e normaliza para lowercase para facilitar matching
     s = ''.join(
         c for c in unicodedata.normalize('NFD', nome)
         if unicodedata.category(c) != 'Mn'
     )
     return s.strip().casefold()
 
-# Funções para scraping
+# Scraping
 def obter_torneios_atp_ativos():
     url = f"{BASE_URL}/matches/"
     r = requests.get(url)
@@ -72,8 +74,7 @@ def obter_torneios_atp_ativos():
     for a in soup.select("a[href*='/atp-men/']"):
         nome = a.text.strip()
         href = a['href']
-        url_completo = BASE_URL + href if href.startswith('/') else href
-        # Filtrar pelo nome permitido (case-insensitive substring)
+        url_completo = (BASE_URL + href) if href.startswith('/') else href
         if any(tp.lower() in nome.lower() for tp in TORNEIOS_PERMITIDOS):
             if url_completo not in [t['url'] for t in torneios]:
                 torneios.append({"nome": nome, "url": url_completo})
@@ -156,7 +157,7 @@ def obter_jogos_do_torneio_completos(url_torneio):
             break
     return jogos
 
-# Funções para dados Elo e yElo
+# Elo / yElo functions
 def obter_elo_tabela():
     url = "https://tennisabstract.com/reports/atp_elo_ratings.html"
     try:
@@ -238,7 +239,7 @@ superficies_map = {
     "Terra Batida": "Clay"
 }
 
-# --- App Streamlit ---
+# --- Streamlit App ---
 st.title("Análise de Valor em Apostas de Ténis — Torneios ATP")
 
 if st.button("Atualizar dados agora"):
@@ -337,7 +338,7 @@ elo_final_b = (esp_b / geral_b) * yelo_b_f
 prob_a = elo_prob(elo_final_a, elo_final_b)
 prob_b = 1 - prob_a
 
-# Remover juice das odds do bookie antes do cálculo valor esperado
+# Remover juice (margem da casa) das odds antes do cálculo
 prob_a_raw = 1 / odd_a
 prob_b_raw = 1 / odd_b
 soma_prob = prob_a_raw + prob_b_raw
@@ -374,7 +375,7 @@ with st.expander("Como funciona o cálculo?"):
     ```
     Elo Final = (Elo Superfície / Elo Geral) × yElo
     ```
-    O valor esperado é calculado usando odds ajustadas para remoção do juice (margem da casa).
+    O valor esperado é calculado usando odds ajustadas para retirada do juice (margem da casa).
     """)
 
 st.markdown("---")
