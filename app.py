@@ -9,7 +9,7 @@ import importlib.util
 
 BASE_URL = "https://www.tennisexplorer.com"
 
-# Lista dos torneios ATP permitidos (pode ampliar/ajustar conforme desejar)
+# Lista rigorosa dos torneios permitidos — exata correspondência (case insensitive)
 TORNEIOS_PERMITIDOS = [
     "Acapulco", "Adelaide", "Adelaide 2", "Almaty", "Antwerp", "Astana", "Atlanta", "ATP Cup",
     "Auckland", "Australian Open", "Banja Luka", "Barcelona", "Basel", "Bastad", "Beijing",
@@ -25,15 +25,15 @@ TORNEIOS_PERMITIDOS = [
     "Umag", "United Cup", "US Open", "Vienna", "Washington", "Wimbledon", "Winston Salem", "Zhuhai"
 ]
 
-# Verificação da dependência html5lib
+# Verifica se o html5lib está instalado
 if importlib.util.find_spec("html5lib") is None:
     st.error(
         "Dependência obrigatória não encontrada: 'html5lib'.\n"
-        "Execute `pip install html5lib` no terminal antes de usar o aplicativo."
+        "Execute `pip install html5lib` para continuar."
     )
     st.stop()
 
-# Funções para tratamento de nomes
+# Funções auxiliares para nomes
 def limpar_numero_ranking(nome):
     return re.sub(r"\s*\(\d+\)", "", nome).strip()
 
@@ -47,23 +47,20 @@ def ajustar_nome(nome_raw):
 def reorganizar_nome(nome):
     partes = nome.strip().split()
     if len(partes) == 2:
-        # Em 2 partes, inverter a ordem: "Nome Apelido" -> "Apelido Nome"
         return f"{partes[1]} {partes[0]}"
     elif len(partes) == 3:
-        # Em 3 partes, mover a última para o primeiro lugar: "Nome1 Nome2 Nome3" -> "Nome3 Nome1 Nome2"
         return f"{partes[2]} {partes[0]} {partes[1]}"
     else:
-        return nome  # Mantém original para outros casos
+        return nome
 
 def normalizar_nome(nome):
-    # Remove acentos e normaliza para lowercase para facilitar matching
     s = ''.join(
         c for c in unicodedata.normalize('NFD', nome)
         if unicodedata.category(c) != 'Mn'
     )
     return s.strip().casefold()
 
-# Scraping
+# Extrai torneios masculinos ATP ativos com filtro exato por nome
 def obter_torneios_atp_ativos():
     url = f"{BASE_URL}/matches/"
     r = requests.get(url)
@@ -71,11 +68,13 @@ def obter_torneios_atp_ativos():
     soup = BeautifulSoup(r.content, "html.parser")
 
     torneios = []
+    nomes_permitidos = [tp.lower() for tp in TORNEIOS_PERMITIDOS]
+
     for a in soup.select("a[href*='/atp-men/']"):
         nome = a.text.strip()
         href = a['href']
-        url_completo = (BASE_URL + href) if href.startswith('/') else href
-        if any(tp.lower() in nome.lower() for tp in TORNEIOS_PERMITIDOS):
+        url_completo = BASE_URL + href if href.startswith('/') else href
+        if nome.lower() in nomes_permitidos:
             if url_completo not in [t['url'] for t in torneios]:
                 torneios.append({"nome": nome, "url": url_completo})
     return torneios
@@ -102,6 +101,7 @@ def obter_jogos_do_torneio_completos(url_torneio):
     r = requests.get(url_torneio)
     r.raise_for_status()
     soup = BeautifulSoup(r.content, "html.parser")
+
     tabelas = soup.select("table")
     if not tabelas:
         return jogos
@@ -157,7 +157,6 @@ def obter_jogos_do_torneio_completos(url_torneio):
             break
     return jogos
 
-# Elo / yElo functions
 def obter_elo_tabela():
     url = "https://tennisabstract.com/reports/atp_elo_ratings.html"
     try:
@@ -239,7 +238,6 @@ superficies_map = {
     "Terra Batida": "Clay"
 }
 
-# --- Streamlit App ---
 st.title("Análise de Valor em Apostas de Ténis — Torneios ATP")
 
 if st.button("Atualizar dados agora"):
@@ -338,7 +336,7 @@ elo_final_b = (esp_b / geral_b) * yelo_b_f
 prob_a = elo_prob(elo_final_a, elo_final_b)
 prob_b = 1 - prob_a
 
-# Remover juice (margem da casa) das odds antes do cálculo
+# Ajuste odds para remoção do juice (margem da casa)
 prob_a_raw = 1 / odd_a
 prob_b_raw = 1 / odd_b
 soma_prob = prob_a_raw + prob_b_raw
@@ -375,7 +373,7 @@ with st.expander("Como funciona o cálculo?"):
     ```
     Elo Final = (Elo Superfície / Elo Geral) × yElo
     ```
-    O valor esperado é calculado usando odds ajustadas para retirada do juice (margem da casa).
+    O valor esperado é calculado usando odds ajustadas para remoção do juice (margem da casa).
     """)
 
 st.markdown("---")
