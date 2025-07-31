@@ -320,14 +320,14 @@ col1, col2 = st.columns(2)
 with col1:
     st.metric("Prob. de vitória (A)", f"{prob_a*100:.2f}%")
     st.metric("Valor esperado (A)", f"{valor_a*100:.2f}%")
-    if odd_a_f >= 1.45 and 0.03 <= valor_a <= 0.20:
+    if 3.00 >= odd_a_f >= 1.45 and 0.03 <= valor_a <= 0.25:
         st.success("Valor positivo ✅")
     else:
         st.error("Sem valor ❌")
 with col2:
     st.metric("Prob. de vitória (B)", f"{prob_b*100:.2f}%")
     st.metric("Valor esperado (B)", f"{valor_b*100:.2f}%")
-    if odd_b_f >= 1.45 and 0.03 <= valor_b <= 0.20:
+    if 3.00 >= odd_b_f >= 1.45 and 0.03 <= valor_b <= 0.25:
         st.success("Valor positivo ✅")
     else:
         st.error("Sem valor ❌")
@@ -433,8 +433,8 @@ with st.expander("Análise automática: jogos com valor positivo"):
             df = pd.DataFrame(resultados)
             # Filtrar apenas jogos com valor positivo (em A ou B)
             df_valor_positivo = df[
-                (df["Valor A (raw)"] >= 0.03) & (df["Valor A (raw)"] <= 0.20) & (df["Odd A"] >= 1.45) |
-                (df["Valor B (raw)"] >= 0.03) & (df["Valor B (raw)"] <= 0.20) & (df["Odd B"] >= 1.45)
+                (df["Valor A (raw)"] >= 0.03) & (df["Valor A (raw)"] <= 0.25) & (df["Odd A"] >= 1.45) & (df["Odd A"] <= 3.00)|
+                (df["Valor B (raw)"] >= 0.03) & (df["Valor B (raw)"] <= 0.25) & (df["Odd B"] >= 1.45) & (df["Odd B"] <= 3.00)
             ]
 
             def highlight_valor(row):
@@ -442,9 +442,9 @@ with st.expander("Análise automática: jogos com valor positivo"):
                 try:
                     idx_val_a = row.index.get_loc("Valor A %")
                     idx_val_b = row.index.get_loc("Valor B %")
-                    if 0.03 <= row["Valor A (raw)"] <= 0.20 and 1.45 <= row["Odd A"] <= 3.00:
+                    if 0.03 <= row["Valor A (raw)"] <= 0.25 and 1.45 <= row["Odd A"] <= 3.00:
                         styles[idx_val_a] = "background-color: #8ef58e;"
-                    if 0.03 <= row["Valor B (raw)"] <= 0.20 and 1.45 <= row["Odd B"] <= 3.00:
+                    if 0.03 <= row["Valor B (raw)"] <= 0.25 and 1.45 <= row["Odd B"] <= 3.00:
                         styles[idx_val_b] = "background-color: #8ef58e;"
                 except KeyError:
                     pass
