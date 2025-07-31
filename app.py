@@ -432,11 +432,16 @@ with st.expander("Análise automática: jogos com valor positivo"):
         else:
             df = pd.DataFrame(resultados)
             def highlight_valor(row):
-                return [
-                    "", "", "",
-                    "", "", 
-                    "background-color: #8ef58e;" if 0.03 <= row["Valor A (raw)"] <= 0.20 and 1.45 <= row["Odd A"] <= 3.00 else "",
-                    "background-color: #8ef58e;" if 0.03 <= row["Valor B (raw)"] <= 0.20 and 1.45 <= row["Odd B"] <= 3.00 else ""
-                ]
+                styles = [""] * len(row)
+                try:
+                    idx_val_a = row.index.get_loc("Valor A %")
+                    idx_val_b = row.index.get_loc("Valor B %")
+                    if 0.03 <= row["Valor A (raw)"] <= 0.20 and 1.45 <= row["Odd A"] <= 3.00:
+                        styles[idx_val_a] = "background-color: #8ef58e;"
+                    if 0.03 <= row["Valor B (raw)"] <= 0.20 and 1.45 <= row["Odd B"] <= 3.00:
+                        styles[idx_val_b] = "background-color: #8ef58e;"
+                except KeyError:
+                    pass
+                return styles
             styled = df.style.apply(highlight_valor, axis=1)
             st.dataframe(styled, use_container_width=True)
