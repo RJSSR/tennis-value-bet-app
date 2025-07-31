@@ -369,7 +369,7 @@ with st.expander("Detalhes completos Elo/YElo e como funciona o cálculo"):
     Um valor esperado positivo indica vantagem estatística na aposta.
     """, unsafe_allow_html=True)
 
-# Análise automática em bloco expansível com destaque
+# Análise automática em bloco expansível com destaque nas células  
 with st.expander("Análise automática: jogos com valor positivo"):
     if st.button("Analisar todos os jogos"):
         resultados = []
@@ -431,12 +431,12 @@ with st.expander("Análise automática: jogos com valor positivo"):
             st.info("Nenhum jogo com valor possível analisado.")
         else:
             df = pd.DataFrame(resultados)
-            df_visao = df.drop(columns=["Valor A (raw)","Valor B (raw)"])
             def highlight_valor(row):
                 return [
-                    "", "", "", "", "",
+                    "", "", "",
+                    "", "", 
                     "background-color: #8ef58e;" if 0.03 <= row["Valor A (raw)"] <= 0.20 and 1.45 <= row["Odd A"] <= 3.00 else "",
                     "background-color: #8ef58e;" if 0.03 <= row["Valor B (raw)"] <= 0.20 and 1.45 <= row["Odd B"] <= 3.00 else ""
                 ]
-            styled = df_visao.style.apply(highlight_valor, axis=1)
+            styled = df.style.apply(highlight_valor, axis=1)
             st.dataframe(styled, use_container_width=True)
