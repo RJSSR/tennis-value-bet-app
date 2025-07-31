@@ -221,29 +221,32 @@ if st.button("Atualizar dados"):
 with st.spinner("Carregando dados Elo e yElo..."):
     elo_df = cache_elo()
     yelo_df = cache_yelo()
+
 if elo_df is None or yelo_df is None or elo_df.empty or yelo_df.empty:
     st.error("Erro a carregar bases Elo ou yElo.")
     st.stop()
 
 with st.spinner("Detectando torneios ATP..."):
     torneios = obter_torneios_atp_ativos()
+
 if not torneios:
     st.warning("Nenhum torneio ATP ativo encontrado.")
     st.stop()
 
 nome_torneio = st.selectbox("Escolha o torneio ATP:", [t['nome'] for t in torneios])
-url_torneio = next(t['url'] for t in torneios if t['nome']==nome_torneio)
+url_torneio = next(t['url'] for t in torneios if t['nome'] == nome_torneio)
 
 superficie_nome = st.selectbox("Escolha a superfície", list(superficies_map.keys()), index=0)
 superficie = superficies_map[superficie_nome]
 
 with st.spinner(f"Carregando jogos do {nome_torneio}..."):
     jogos = obter_jogos_do_torneio(url_torneio)
+
 if not jogos:
     st.warning("Nenhum jogo encontrado neste torneio.")
     st.stop()
 
-# --- Seleção manual
+# Seleção manual
 selecionado_label = st.selectbox("Escolha o jogo:", [j['label'] for j in jogos])
 selecionado = next(j for j in jogos if j['label'] == selecionado_label)
 
@@ -252,36 +255,44 @@ odd_b = st.number_input(f"Odd para {selecionado['jogador_b']}", value=selecionad
 
 idx_a = match_nome(selecionado['jogador_a'], elo_df['Player'])
 idx_b = match_nome(selecionado['jogador_b'], elo_df['Player'])
+
 if idx_a is None:
     st.error(f"Não encontrei Elo para: {selecionado['jogador_a']}")
     st.stop()
 if idx_b is None:
     st.error(f"Não encontrei Elo para: {selecionado['jogador_b']}")
     st.stop()
+
 dados_a = elo_df.loc[idx_a]
 dados_b = elo_df.loc[idx_b]
+
 yelo_a = encontrar_yelo(selecionado['jogador_a'], yelo_df)
 yelo_b = encontrar_yelo(selecionado['jogador_b'], yelo_df)
-try:
-    geral_a = float(dados_a['Elo'])
-    esp_a = float(dados_a[{'Hard':'hElo','Clay':'cElo','Grass':'gElo'}[superficie]])
-    yelo_a_f = float(yelo_a)
-    elo_final_a = (esp_a / geral_a) * yelo_a_f
-    st.metric("Elo Final " + selecionado['jogador_a'], f"{elo_final_a:.2f}")
-except:
-    st.warning(f"Elo Final indisponível {selecionado['jogador_a']}")
-try:
-    geral_b = float(dados_b['Elo'])
-    esp_b = float(dados_b[{'Hard':'hElo','Clay':'cElo','Grass':'gElo'}[superficie]])
-    yelo_b_f = float(yelo_b)
-    elo_final_b = (esp_b / geral_b) * yelo_b_f
-    st.metric("Elo Final " + selecionado['jogador_b'], f"{elo_final_b:.2f}")
-except:
-    st.warning(f"Elo Final indisponível {selecionado['jogador_b']}")
+
+col1, col2 = st.columns(2)
+with col1:
+    try:
+        geral_a = float(dados_a['Elo'])
+        esp_a = float(dados_a[{'Hard':'hElo','Clay':'cElo','Grass':'gElo'}[superficie]])
+        yelo_a_f = float(yelo_a)
+        elo_final_a = (esp_a / geral_a) * yelo_a_f
+        st.metric("Elo Final " + selecionado['jogador_a'], f"{elo_final_a:.2f}")
+    except:
+        st.warning(f"Elo Final indisponível {selecionado['jogador_a']}")
+with col2:
+    try:
+        geral_b = float(dados_b['Elo'])
+        esp_b = float(dados_b[{'Hard':'hElo','Clay':'cElo','Grass':'gElo'}[superficie]])
+        yelo_b_f = float(yelo_b)
+        elo_final_b = (esp_b / geral_b) * yelo_b_f
+        st.metric("Elo Final " + selecionado['jogador_b'], f"{elo_final_b:.2f}")
+    except:
+        st.warning(f"Elo Final indisponível {selecionado['jogador_b']}")
 
 if yelo_a is None or yelo_b is None:
     st.error("Não consegui encontrar yElo para um dos jogadores.")
     st.stop()
+
 try:
     elo_final_a = float(elo_final_a)
     elo_final_b = float(elo_final_b)
@@ -290,8 +301,10 @@ try:
 except:
     st.error("Erro nos valores para cálculo.")
     st.stop()
+
 prob_a = elo_prob(elo_final_a, elo_final_b)
 prob_b = 1 - prob_a
+
 raw_p_a = 1 / odd_a_f
 raw_p_b = 1 / odd_b_f
 soma_raw = raw_p_a + raw_p_b
@@ -322,10 +335,16 @@ with col2:
 with st.expander("Detalhes completos Elo/YElo e como funciona o cálculo"):
     st.write(f"### {selecionado['jogador_a']}")
     st.json(dados_a.to_dict())
-    st.write(f"YElo: {yelo_a:.2f}" if yelo_a is not None else "YElo: não disponível")
+    try:
+        st.write(f"YElo: {float(yelo_a):.2f}")
+    except (TypeError, ValueError):
+        st.write("YElo: não disponível")
     st.write(f"### {selecionado['jogador_b']}")
     st.json(dados_b.to_dict())
-    st.write(f"YElo: {yelo_b:.2f}" if yelo_b is not None else "YElo: não disponível")
+    try:
+        st.write(f"YElo: {float(yelo_b):.2f}")
+    except (TypeError, ValueError):
+        st.write("YElo: não disponível")
     st.markdown(r"""
     ### Como funciona o cálculo?
 
@@ -341,7 +360,7 @@ with st.expander("Detalhes completos Elo/YElo e como funciona o cálculo"):
     Elo_{final} = \left(\frac{Elo_{superfície}}{Elo_{geral}}\right) \times yElo
     $$
 
-    O valor esperado da aposta é calculado removendo o juice (margem da casa) das odds:
+    O valor esperado da aposta é calculado removendo a margem da casa (juice) das odds:
 
     $$
     Valor = Probabilidade \times Odd_{corrigida} - 1
