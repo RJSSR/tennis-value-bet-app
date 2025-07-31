@@ -25,7 +25,7 @@ TORNEIOS_PERMITIDOS = [
 ]
 
 if importlib.util.find_spec("html5lib") is None:
-    st.error("Dependência obrigatória 'html5lib' ausente. Instale com:\n\npip install html5lib")
+    st.error("Dependência obrigatória 'html5lib' ausente. Instale com:\npip install html5lib")
     st.stop()
 
 def limpar_numero_ranking(nome):
@@ -221,7 +221,7 @@ if st.button("Atualizar dados"):
 with st.spinner("Carregando dados Elo e yElo..."):
     elo_df = cache_elo()
     yelo_df = cache_yelo()
-if not elo_df or not yelo_df:
+if elo_df is None or yelo_df is None or elo_df.empty or yelo_df.empty:
     st.error("Erro a carregar bases Elo ou yElo.")
     st.stop()
 
@@ -243,7 +243,7 @@ if not jogos:
     st.warning("Nenhum jogo encontrado neste torneio.")
     st.stop()
 
-# Seleção manual
+# --- Seleção manual
 selecionado_label = st.selectbox("Escolha o jogo:", [j['label'] for j in jogos])
 selecionado = next(j for j in jogos if j['label'] == selecionado_label)
 
@@ -350,7 +350,7 @@ with st.expander("Detalhes completos Elo/YElo e como funciona o cálculo"):
     Um valor esperado positivo indica vantagem estatística na aposta.
     """, unsafe_allow_html=True)
 
-# Análise automática em bloco expansível e destaque
+# Análise automática em bloco expansível com destaque
 with st.expander("Análise automática: jogos com valor positivo"):
     if st.button("Analisar todos os jogos"):
         resultados = []
@@ -375,7 +375,6 @@ with st.expander("Análise automática: jogos com valor positivo"):
                 eGA = float(dA["Elo"])
                 eSA = float(dA[{"Hard":"hElo", "Clay":"cElo", "Grass":"gElo"}[superficie]])
                 yFA = float(yA)
-
                 eGB = float(dB["Elo"])
                 eSB = float(dB[{"Hard":"hElo", "Clay":"cElo", "Grass":"gElo"}[superficie]])
                 yFB = float(yB)
@@ -419,7 +418,7 @@ with st.expander("Análise automática: jogos com valor positivo"):
                     "", "", 
                     "background-color: #8ef58e;" if 0.03 <= row["Valor A (raw)"] <= 0.20 and 1.45 <= row["Odd A"] <= 3.00 else "",
                     "background-color: #8ef58e;" if 0.03 <= row["Valor B (raw)"] <= 0.20 and 1.45 <= row["Odd B"] <= 3.00 else "",
-                    "", "" # nas colunas técnicas ocultas na view
+                    "", "" # colunas técnicas ocultas
                 ]
             styled = df.style.apply(highlight_valor, axis=1).hide_columns(["Valor A (raw)","Valor B (raw)"])
             st.dataframe(styled, use_container_width=True)
