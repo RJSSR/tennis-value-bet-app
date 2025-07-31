@@ -431,13 +431,12 @@ with st.expander("Análise automática: jogos com valor positivo"):
             st.info("Nenhum jogo com valor possível analisado.")
         else:
             df = pd.DataFrame(resultados)
+            df_visao = df.drop(columns=["Valor A (raw)","Valor B (raw)"])
             def highlight_valor(row):
                 return [
-                    "", "", "",
-                    "", "", 
+                    "", "", "", "", "",
                     "background-color: #8ef58e;" if 0.03 <= row["Valor A (raw)"] <= 0.20 and 1.45 <= row["Odd A"] <= 3.00 else "",
-                    "background-color: #8ef58e;" if 0.03 <= row["Valor B (raw)"] <= 0.20 and 1.45 <= row["Odd B"] <= 3.00 else "",
-                    "", "" # colunas técnicas ocultas
+                    "background-color: #8ef58e;" if 0.03 <= row["Valor B (raw)"] <= 0.20 and 1.45 <= row["Odd B"] <= 3.00 else ""
                 ]
-            styled = df.style.apply(highlight_valor, axis=1).hide_columns(["Valor A (raw)","Valor B (raw)"])
+            styled = df_visao.style.apply(highlight_valor, axis=1)
             st.dataframe(styled, use_container_width=True)
