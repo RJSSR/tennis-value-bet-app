@@ -418,8 +418,8 @@ with st.expander("Análise automática: jogos com valor positivo"):
             valB = value_bet(pB, corr_oB)
             resultados.append({
                 "Jogo": f"{jogador_a} vs {jogador_b}",
-                "Odd A": oA,
-                "Odd B": oB,
+                "Odd A": f"{oA:.2f}",
+                "Odd B": f"{oB:.2f}",
                 "Prob A %": f"{pA*100:.2f}%",
                 "Prob B %": f"{pB*100:.2f}%",
                 "Valor A %": f"{valA*100:.2f}%",
@@ -433,8 +433,8 @@ with st.expander("Análise automática: jogos com valor positivo"):
             df = pd.DataFrame(resultados)
             # Filtrar apenas jogos com valor positivo (em A ou B)
             df_valor_positivo = df[
-                (df["Valor A (raw)"] >= 0.03) & (df["Valor A (raw)"] <= 0.25) & (df["Odd A"] >= 1.45) & (df["Odd A"] <= 3.00)|
-                (df["Valor B (raw)"] >= 0.03) & (df["Valor B (raw)"] <= 0.25) & (df["Odd B"] >= 1.45) & (df["Odd B"] <= 3.00)
+                (df["Valor A (raw)"] >= 0.03) & (df["Valor A (raw)"] <= 0.25) & (df["Odd A"].astype(float) >= 1.45) & (df["Odd A"].astype(float) <= 3.00)|
+                (df["Valor B (raw)"] >= 0.03) & (df["Valor B (raw)"] <= 0.25) & (df["Odd B"].astype(float) >= 1.45) & (df["Odd B"].astype(float) <= 3.00)
             ]
 
             def highlight_valor(row):
@@ -442,9 +442,9 @@ with st.expander("Análise automática: jogos com valor positivo"):
                 try:
                     idx_val_a = row.index.get_loc("Valor A %")
                     idx_val_b = row.index.get_loc("Valor B %")
-                    if 0.03 <= row["Valor A (raw)"] <= 0.25 and 1.45 <= row["Odd A"] <= 3.00:
+                    if 0.03 <= row["Valor A (raw)"] <= 0.25 and 1.45 <= float(row["Odd A"]) <= 3.00:
                         styles[idx_val_a] = "background-color: #8ef58e;"
-                    if 0.03 <= row["Valor B (raw)"] <= 0.25 and 1.45 <= row["Odd B"] <= 3.00:
+                    if 0.03 <= row["Valor B (raw)"] <= 0.25 and 1.45 <= float(row["Odd B"]) <= 3.00:
                         styles[idx_val_b] = "background-color: #8ef58e;"
                 except KeyError:
                     pass
@@ -452,3 +452,6 @@ with st.expander("Análise automática: jogos com valor positivo"):
 
             styled = df_valor_positivo.style.apply(highlight_valor, axis=1)
             st.dataframe(styled, use_container_width=True)
+
+# Adicionando a linha de créditos/fonte no final do app
+st.markdown("### Fontes: tennisexplorer.com e tennisabstract.com | App experimental")
