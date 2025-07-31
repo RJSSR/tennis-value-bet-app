@@ -431,6 +431,12 @@ with st.expander("Análise automática: jogos com valor positivo"):
             st.info("Nenhum jogo com valor possível analisado.")
         else:
             df = pd.DataFrame(resultados)
+            # Filtrar apenas jogos com valor positivo (em A ou B)
+            df_valor_positivo = df[
+                (df["Valor A (raw)"] >= 0.03) & (df["Valor A (raw)"] <= 0.20) & (df["Odd A"] >= 1.45) |
+                (df["Valor B (raw)"] >= 0.03) & (df["Valor B (raw)"] <= 0.20) & (df["Odd B"] >= 1.45)
+            ]
+
             def highlight_valor(row):
                 styles = [""] * len(row)
                 try:
@@ -443,5 +449,6 @@ with st.expander("Análise automática: jogos com valor positivo"):
                 except KeyError:
                     pass
                 return styles
-            styled = df.style.apply(highlight_valor, axis=1)
+
+            styled = df_valor_positivo.style.apply(highlight_valor, axis=1)
             st.dataframe(styled, use_container_width=True)
