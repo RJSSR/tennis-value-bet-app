@@ -414,17 +414,16 @@ with tab_hist:
         }
         """)
 
-        gb.configure_column(
-            "Remover",
-            field="remove",
-            header_name="Remover",
-            cellRenderer=button_renderer,
-            maxWidth=100,
-            suppressMenu=True,
-            editable=False,
-            filter=False,
-            sortable=False,
-        )
+       gb.configure_column(
+    "remove",
+    header_name="Remover",
+    cellRenderer=button_renderer,
+    maxWidth=100,
+    suppressMenu=True,
+    editable=False,
+    filter=False,
+    sortable=False,
+)
 
         # Criar coluna "remove" vazia para os botões
         if "remove" not in df_hist.columns:
