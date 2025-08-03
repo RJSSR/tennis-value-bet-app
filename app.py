@@ -70,8 +70,7 @@ TORNEIOS_WTA_PERMITIDOS = [
     "Vancouver WTA", "Warsaw 2 WTA", "Warsaw WTA", "Washington", "Wimbledon", "Wuhan", "Zhengzhou 2 WTA"
 ]
 
-# ===== Funções utilitárias =====
-
+# ===== Funções auxiliares =====
 def limpar_numero_ranking(nome):
     return re.sub(r"\s*\(\d+\)", "", nome or "").strip()
 
@@ -275,8 +274,7 @@ def elo_por_superficie(df_jogador, superficie_en):
     except:
         return float(df_jogador.get("Elo", 1500))
 
-# ===== Parâmetros globais =====
-
+# ===== Configurações globais =====
 TOLERANCIA = 1e-6
 VALOR_MIN = 0.045
 VALOR_MAX = 0.275
@@ -284,7 +282,6 @@ ODD_MIN = 1.425
 ODD_MAX = 3.15
 
 # ===== Histórico de apostas na sessão =====
-
 if "historico_apostas" not in st.session_state:
     st.session_state["historico_apostas"] = []
 
@@ -295,13 +292,12 @@ def calcular_retorno(aposta):
     if resultado == "ganhou":
         return valor_apostado * odd
     elif resultado == "cashout":
-        # Exemplo: cashout retorna 50% do valor apostado
+        # Cashout 50% como exemplo
         return valor_apostado * 0.5
     else:
         return 0.0
 
 # ===== Sidebar =====
-
 with st.sidebar:
     st.header("⚙️ Definições gerais")
     tipo_competicao = st.selectbox("Escolher competição", ["ATP", "WTA"])
@@ -314,8 +310,7 @@ if btn_atualizar:
 
 superficie_en = superficies_map[superficie_pt]
 
-# ===== Dados principais =====
-
+# ===== Obter torneios e dados =====
 torneios = obter_torneios(tipo=tipo_competicao)
 if not torneios:
     st.error(f"Não foi possível obter torneios ativos para {tipo_competicao}.")
@@ -338,13 +333,14 @@ if not jogos:
     st.warning("Nenhum jogo encontrado neste torneio.")
     st.stop()
 
-# ===== TABS =====
+# ===== Tabs =====
+tab_manual, tab_auto, tab_hist = st.tabs([
+    f"{tipo_competicao} - Análise Manual",
+    f"{tipo_competicao} - Análise Automática",
+    "Histórico"
+])
 
-tab_manual, tab_auto, tab_hist = st.tabs([f"{tipo_competicao} - Análise Manual",
-                                         f"{tipo_competicao} - Análise Automática",
-                                         "Histórico"])
-
-# ===== TAB MANUAL =====
+# ===== Aba Manual =====
 with tab_manual:
     st.header(f"Análise Manual de Jogos {tipo_competicao}")
 
@@ -384,8 +380,8 @@ with tab_manual:
         esp_b = elo_por_superficie(dados_b, superficie_en)
         yelo_b_f = float(yelo_b)
         elo_final_b = (esp_b / geral_b) * yelo_b_f
-    except:
-        st.warning("Erro ao calcular Elo final.")
+    except Exception as e:
+        st.warning(f"Erro ao calcular Elo final: {e}")
         st.stop()
 
     prob_a = elo_prob(elo_final_a, elo_final_b)
@@ -450,7 +446,49 @@ with tab_manual:
         st.session_state["historico_apostas"].append(aposta)
         st.success(f"Aposta em {jogador_apostar} registrada com odd {odd_usar} e stake €{stake_usar:.2f}")
 
-# ===== TAB AUTOMÁTICO =====
+    # Detalhes Elo e explicação dos cálculos
+    with st.expander("📈 Detalhes dos ELOs e Cálculos"):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"### {selecionado['jogador_a']}")
+            st.write(f"- Elo Geral: {geral_a:.2f}")
+            st.write(f"- Elo {superficie_pt}: {esp_a:.2f}")
+            st.write(f"- yElo: {yelo_a_f:.2f}")
+            st.write(f"- Elo Final calculado: {elo_final_a:.2f}")
+        with col2:
+            st.write(f"### {selecionado['jogador_b']}")
+            st.write(f"- Elo Geral: {geral_b:.2f}")
+            st.write(f"- Elo {superficie_pt}: {esp_b:.2f}")
+            st.write(f"- yElo: {yelo_b_f:.2f}")
+            st.write(f"- Elo Final calculado: {elo_final_b:.2f}")
+
+    with st.expander("🔬 Explicação dos Cálculos e Detalhes Avançados"):
+        st.markdown("""
+        - O sistema **Elo** estima a força relativa dos jogadores.
+        - A probabilidade do Jogador A vencer o Jogador B é:
+          
+          $$ P(A) = \\frac{1}{1 + 10^{\\frac{Elo_B - Elo_A}{400}}} $$
+        
+        - As odds são corrigidas para eliminar a margem das casas de apostas:
+          
+          $$ \\text{Odd corrigida} = \\frac{1}{\\text{Probabilidade normalizada}} $$
+        
+        - O valor esperado ("value bet") é calculado como: 
+        
+          $$ Valor = Probabilidade \\times Odd_{corrigida} - 1 $$
+        
+        - A stake recomendada depende do valor esperado:
+        
+          | Intervalo de Valor Esperado | Stake (€) |
+          |-----------------------------|-----------|
+          | 4,5% a 11%                  | 5         |
+          | 11% a 18%                   | 7.5       |
+          | 18% a 27,5%                 | 10        |
+        """)
+
+    st.markdown('<div class="custom-sep"></div>', unsafe_allow_html=True)
+
+# ===== Aba Automática =====
 with tab_auto:
     st.header(f"Análise Automática de Jogos {tipo_competicao} — Valor Positivo")
     resultados = []
@@ -563,11 +601,10 @@ with tab_auto:
         st.dataframe(styled.format(precision=2), use_container_width=True)
 
         st.markdown("---")
-        st.subheader("Registrar aposta automática")
+        st.subheader("Registrar apostas automáticas")
         for idx, row in df_valor_positivo.iterrows():
             col1, col2 = st.columns(2)
             with col1:
-                # Botão aposta Jogador A
                 if float(row["Stake A (€)"]) > 0:
                     if st.button(f"Registrar aposta A em {row['Jogo']}", key=f"reg_auto_a_{idx}"):
                         aposta = {
@@ -582,7 +619,6 @@ with tab_auto:
                         st.session_state["historico_apostas"].append(aposta)
                         st.success(f"Aposta em {aposta['aposta']} registrada automaticamente (Jogador A)")
             with col2:
-                # Botão aposta Jogador B
                 if float(row["Stake B (€)"]) > 0:
                     if st.button(f"Registrar aposta B em {row['Jogo']}", key=f"reg_auto_b_{idx}"):
                         aposta = {
@@ -599,7 +635,7 @@ with tab_auto:
 
     st.caption("Legenda stake: 5€ [baixa], 7.5€ [média], 10€ [alta]")
 
-# ===== TAB HISTÓRICO =====
+# ===== Aba Histórico =====
 with tab_hist:
     st.header("📊 Histórico de Apostas e Retorno")
 
@@ -610,6 +646,7 @@ with tab_hist:
 
         st.dataframe(df_hist.drop(columns=["retorno"]), use_container_width=True)
 
+        # Métricas resumidas
         st.metric("Retorno Total (€)", f"{df_hist['retorno'].sum():.2f}")
         st.metric("Número de Apostas", len(df_hist))
         num_ganhas = (df_hist["resultado"] == "ganhou").sum()
