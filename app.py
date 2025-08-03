@@ -715,7 +715,7 @@ with tab_hist:
                 st.session_state["historico_apostas_df"].loc[selecionado_idx, "resultado"] = nova_res
                 salvar_historico(st.session_state["historico_apostas_df"])
                 st.success("Resultado atualizado!")
-                st.experimental_rerun()  # Atualiza interface imediatamente
+                st.rerun()  # Atualiza interface imediatamente
             else:
                 st.error("Selecione um resultado válido para atualização.")
 
