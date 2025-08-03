@@ -286,7 +286,7 @@ def salvar_historico(df):
 
 def calcular_retorno(aposta):
     resultado = aposta.get("resultado", "")
-    valor = float(aposta.get("stake", 0.0))  # usar stake para consistência
+    valor = float(aposta.get("stake", 0.0))  # usamos stake para consistência
     odd = float(aposta.get("odd", 0.0))
     if resultado == "ganhou":
         return valor * odd
@@ -330,7 +330,7 @@ with st.sidebar:
 
 if btn_atualizar:
     st.cache_data.clear()
-    st.rerun()
+    st.experimental_rerun()
 
 superficie_en = superficies_map[superficie_pt]
 
@@ -602,24 +602,22 @@ with tab_hist:
     if df_hist.empty:
         st.info("Nenhuma aposta registrada.")
     else:
-        # Reorganiza as colunas para melhor visualização (coloque as que desejar)
+        # Reorganiza as colunas para melhor visualização
         cols = df_hist.columns.tolist()
-        # Excluir colunas redundantes da exibição se quiser
+        # Remove colunas que não quer mostrar
         for c in ["valor_apostado", "competicao", "data"]:
             if c in cols:
                 cols.remove(c)
 
         nova_ordem = ["data", "competicao"] + cols
-        # Ajusta o DataFrame na ordem desejada (mantendo colunas existentes)
         nova_ordem = [c for c in nova_ordem if c in df_hist.columns]
         df_hist = df_hist[nova_ordem].copy()
 
-        # Define valores válidos para edição do resultado na grade
         resultados_validos = ["", "ganhou", "perdeu", "cashout"]
 
         gb = GridOptionsBuilder.from_dataframe(df_hist)
 
-        # Coluna 'resultado' editável com dropdown para validar entradas
+        # Coluna resultado editável com dropdown para validação
         gb.configure_column(
             "resultado",
             editable=True,
@@ -629,7 +627,7 @@ with tab_hist:
             header_name="Resultado",
         )
 
-        # Botão na coluna 'remove' para exclusão da aposta da tabela
+        # Botão para remover aposta
         button_renderer = JsCode("""
         class BtnRemoveRenderer {
             init(params) {
@@ -672,7 +670,6 @@ with tab_hist:
 
         grid_options = gb.build()
 
-        # Callback para remoção da aposta selecionada
         def remove_aposta_callback(data):
             df = st.session_state["historico_apostas_df"]
             condition = (
@@ -685,7 +682,7 @@ with tab_hist:
             if not indices.empty:
                 st.session_state["historico_apostas_df"] = df.drop(indices).reset_index(drop=True)
                 salvar_historico(st.session_state["historico_apostas_df"])
-                st.rerun()
+                st.experimental_rerun()
 
         context = {"remove_callback": remove_aposta_callback}
 
@@ -703,37 +700,25 @@ with tab_hist:
             context=context,
         )
 
-        # Processa alterações feitas no grid (ex: edição de resultado)
         if response["data"] is not None:
             df_updated = pd.DataFrame(response["data"])
 
             if "remove" in df_updated.columns:
                 df_updated = df_updated.drop(columns=["remove"])
 
-            # Atualiza o estado se houver modificação
+            # Atualiza histórico caso haja modificação
             if not df_updated.equals(st.session_state["historico_apostas_df"].astype(str)):
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(st.session_state["historico_apostas_df"])
 
-        # Agora, calcula métricas **apenas para apostas com resultado preenchido**
+        # Calcula métricas considerando apenas apostas com resultado definido (não nulo e não vazio)
         df_hist_resultado = st.session_state["historico_apostas_df"]
-        df_hist_resultado = df_hist_resultado[df_hist_resultado["resultado"].str.strip() != ""]
+        df_hist_resultado = df_hist_resultado[
+            df_hist_resultado["resultado"].notna() & (df_hist_resultado["resultado"].str.strip() != "")
+        ]
 
-        # Assegura tipos numéricos para colunas importantes
         df_hist_resultado["stake"] = pd.to_numeric(df_hist_resultado["stake"], errors="coerce").fillna(0)
         df_hist_resultado["odd"] = pd.to_numeric(df_hist_resultado["odd"], errors="coerce").fillna(0)
-
-        # Função para cálculo de retorno
-        def calcular_retorno(aposta):
-            resultado = aposta.get("resultado", "")
-            valor = float(aposta.get("stake", 0.0))
-            odd = float(aposta.get("odd", 0.0))
-            if resultado == "ganhou":
-                return valor * odd
-            elif resultado == "cashout":
-                return valor * 0.5
-            else:  # perdeu ou outro
-                return 0.0
 
         num_apostas = len(df_hist_resultado)
         apostas_ganhas = (df_hist_resultado["resultado"] == "ganhou").sum()
@@ -742,7 +727,6 @@ with tab_hist:
         montante_ganho = df_hist_resultado.apply(calcular_retorno, axis=1).sum()
         yield_percent = ((montante_ganho - montante_investido) / montante_investido * 100) if montante_investido > 0 else 0.0
 
-        # Exibição das métricas no Streamlit com colunas
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Número de Apostas", num_apostas)
