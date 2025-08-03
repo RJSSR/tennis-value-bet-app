@@ -662,23 +662,26 @@ with tab_auto:
                         salvar_historico(st.session_state["historico_apostas_df"])
                         st.success(f"Aposta {nova_aposta['aposta']} registrada automaticamente (Jogador B)")
 
-# --- Aba Histórico com métricas e remoção ---
+# --- Aba Histórico (com cálculos só após resultado) ---
 with tab_hist:
     st.header("📊 Histórico de Apostas e Retorno")
     df_hist = st.session_state["historico_apostas_df"]
     if not df_hist.empty:
+        # Filtra apostas com resultado definido (não vazio)
+        df_hist_resultado = df_hist[df_hist["resultado"].str.strip() != ""]
+
         df_hist_display = df_hist.copy()
         df_hist_display["retorno"] = df_hist_display.apply(calcular_retorno, axis=1)
 
-        # Removendo coluna valor_apostado e retorno no display
+        # Exibir histórico completo sem colunas valor_apostado e retorno
         st.dataframe(df_hist_display.drop(columns=["valor_apostado", "retorno"]), use_container_width=True)
 
-        # Métricas
-        num_apostas = len(df_hist)
-        apostas_ganhas = (df_hist["resultado"] == "ganhou").sum()
-        apostas_perdidas = (df_hist["resultado"] == "perdeu").sum()
-        montante_investido = df_hist["stake"].sum()
-        montante_ganho = df_hist_display["retorno"].sum()
+        # Métricas calculadas apenas para apostas com resultado
+        num_apostas = len(df_hist_resultado)
+        apostas_ganhas = (df_hist_resultado["resultado"] == "ganhou").sum()
+        apostas_perdidas = (df_hist_resultado["resultado"] == "perdeu").sum()
+        montante_investido = df_hist_resultado["stake"].sum()
+        montante_ganho = df_hist_resultado.apply(calcular_retorno, axis=1).sum()
         yield_percent = ((montante_ganho - montante_investido) / montante_investido * 100) if montante_investido > 0 else 0.0
 
         col1, col2, col3 = st.columns(3)
