@@ -32,6 +32,7 @@ superficies_map = {"Piso Duro": "Hard", "Terra": "Clay", "Relva": "Grass"}
 
 BASE_URL = "https://www.tennisexplorer.com"
 
+# ===== Listas de torneios permitidos ===== (ATP e WTA conforme seu pedido)
 TORNEIOS_ATP_PERMITIDOS = [
     "Acapulco", "Adelaide", "Adelaide 2", "Almaty", "Antwerp", "Astana", "Atlanta", "ATP Cup",
     "Auckland", "Australian Open", "Banja Luka", "Barcelona", "Basel", "Bastad", "Beijing",
@@ -274,13 +275,32 @@ def elo_por_superficie(df_jogador, superficie_en):
     except:
         return float(df_jogador.get("Elo", 1500))
 
+# ===== Parâmetros globais =====
+
 TOLERANCIA = 1e-6
 VALOR_MIN = 0.045
 VALOR_MAX = 0.275
 ODD_MIN = 1.425
 ODD_MAX = 3.15
 
-# ===== Interface: sidebar com controle para limpar cache e rerun =====
+# ===== Histórico de apostas na sessão =====
+
+if "historico_apostas" not in st.session_state:
+    st.session_state["historico_apostas"] = []
+
+def calcular_retorno(aposta):
+    resultado = aposta.get("resultado", "")
+    valor_apostado = aposta.get("valor_apostado", 0.0)
+    odd = aposta.get("odd", 0.0)
+    if resultado == "ganhou":
+        return valor_apostado * odd
+    elif resultado == "cashout":
+        # Exemplo: cashout retorna 50% do valor apostado
+        return valor_apostado * 0.5
+    else:
+        return 0.0
+
+# ===== Sidebar =====
 
 with st.sidebar:
     st.header("⚙️ Definições gerais")
@@ -290,13 +310,12 @@ with st.sidebar:
 
 if btn_atualizar:
     st.cache_data.clear()
-    # Atenção: O rerun aqui é aceito, pois acontece apenas a partir do clique do botão,
-    # assim evitando loops infinitos
-    st.experimental_rerun()  # Força a app rodar do início já com cache limpo
+    st.experimental_rerun()
 
 superficie_en = superficies_map[superficie_pt]
 
-# Obter torneios ativos do tipo escolhido
+# ===== Dados principais =====
+
 torneios = obter_torneios(tipo=tipo_competicao)
 if not torneios:
     st.error(f"Não foi possível obter torneios ativos para {tipo_competicao}.")
@@ -319,8 +338,13 @@ if not jogos:
     st.warning("Nenhum jogo encontrado neste torneio.")
     st.stop()
 
-tab_manual, tab_auto = st.tabs([f"{tipo_competicao} - Análise Manual", f"{tipo_competicao} - Análise Automática"])
+# ===== TABS =====
 
+tab_manual, tab_auto, tab_hist = st.tabs([f"{tipo_competicao} - Análise Manual",
+                                         f"{tipo_competicao} - Análise Automática",
+                                         "Histórico"])
+
+# ===== TAB MANUAL =====
 with tab_manual:
     st.header(f"Análise Manual de Jogos {tipo_competicao}")
 
@@ -329,6 +353,9 @@ with tab_manual:
 
     odd_a_input = st.number_input(f"Odd para {selecionado['jogador_a']}", value=selecionado['odd_a'] or 1.80, step=0.01)
     odd_b_input = st.number_input(f"Odd para {selecionado['jogador_b']}", value=selecionado['odd_b'] or 2.00, step=0.01)
+
+    # Escolha qual jogador aposta A ou B (útil para registrar correta aposta)
+    jogador_apostar = st.radio("Selecione o jogador para apostar", (selecionado['jogador_a'], selecionado['jogador_b']))
 
     idx_a = match_nome(selecionado['jogador_a'], elo_df['Player'])
     idx_b = match_nome(selecionado['jogador_b'], elo_df['Player'])
@@ -384,6 +411,10 @@ with tab_manual:
     stake_a = stake_por_faixa(valor_a_arred)
     stake_b = stake_por_faixa(valor_b_arred)
 
+    stake_usar = stake_a if jogador_apostar == selecionado['jogador_a'] else stake_b
+    odd_usar = odd_a if jogador_apostar == selecionado['jogador_a'] else odd_b
+    valor_usar = valor_a if jogador_apostar == selecionado['jogador_a'] else valor_b
+
     st.divider()
     colA, colB = st.columns(2)
     with colA:
@@ -405,44 +436,23 @@ with tab_manual:
         else:
             st.error("Sem valor")
 
-    with st.expander("📈 Detalhes Elo e Cálculos"):
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write(f"### {selecionado['jogador_a']}")
-            st.write(f"Elo Geral: {geral_a:.2f}")
-            st.write(f"Elo {superficie_pt}: {esp_a:.2f}")
-            st.write(f"yElo: {yelo_a_f:.2f}")
-            st.write(f"Elo Final calculado: {elo_final_a:.2f}")
-        with col2:
-            st.write(f"### {selecionado['jogador_b']}")
-            st.write(f"Elo Geral: {geral_b:.2f}")
-            st.write(f"Elo {superficie_pt}: {esp_b:.2f}")
-            st.write(f"yElo: {yelo_b_f:.2f}")
-            st.write(f"Elo Final calculado: {elo_final_b:.2f}")
-
-    with st.expander("🔬 Explicação dos cálculos e detalhes avançados"):
-        st.markdown("""
-        - O sistema Elo estima a força relativa dos jogadores.
-        - A probabilidade do Jogador A vencer o Jogador B é:
-          
-          $$ P(A) = \\frac{1}{1 + 10^{\\frac{Elo_B - Elo_A}{400}}} $$
-        
-        - Odds são corrigidas para retirar margem das casas.
-        - Valor esperado é calculado como: 
-        
-          $$ Valor = Probabilidade \\times Odd_{corrigida} - 1 $$
-        
-        - A stake recomendada depende do valor esperado:
-        
-          | Intervalo Valor | Stake (€) |
-          |-----------------|-----------|
-          | 4,5% a 11%      | 5         |
-          | 11% a 18%       | 7.5       |
-          | 18% a 27,5%     | 10        |
-        """)
+    # Botão para registrar aposta direto da análise manual
+    if st.button("Registrar esta aposta"):
+        aposta = {
+            "data": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "evento": selecionado['label'],
+            "aposta": jogador_apostar,
+            "odd": odd_usar,
+            "valor_apostado": stake_usar,
+            "stake": stake_usar,
+            "resultado": ""
+        }
+        st.session_state["historico_apostas"].append(aposta)
+        st.success(f"Aposta em {jogador_apostar} registrada com odd {odd_usar} e stake €{stake_usar:.2f}")
 
     st.markdown('<div class="custom-sep"></div>', unsafe_allow_html=True)
 
+# ===== TAB AUTOMÁTICO =====
 with tab_auto:
     st.header(f"Análise Automática de Jogos {tipo_competicao} — Valor Positivo")
     resultados = []
@@ -476,77 +486,4 @@ with tab_auto:
         eloFA = (eSA / eGA) * yFA
         eloFB = (eSB / eGB) * yFB
 
-        pA = elo_prob(eloFA, eloFB)
-        pB = 1 - pA
-
-        rawpA = 1 / oA
-        rawpB = 1 / oB
-        sRaw = rawpA + rawpB
-        cA = rawpA / sRaw
-        cB = rawpB / sRaw
-        corr_oA = 1 / cA
-        corr_oB = 1 / cB
-
-        valA = value_bet(pA, corr_oA)
-        valB = value_bet(pB, corr_oB)
-
-        stakeA = stake_por_faixa(valA)
-        stakeB = stake_por_faixa(valB)
-
-        resultados.append({
-            "Jogo": f"{jogador_a} vs {jogador_b}",
-            "Odd A": f"{oA:.2f}",
-            "Odd B": f"{oB:.2f}",
-            "Valor A %": f"{valA*100:.1f}%",
-            "Valor B %": f"{valB*100:.1f}%",
-            "Stake A (€)": f"{stakeA:.2f}",
-            "Stake B (€)": f"{stakeB:.2f}",
-            "Valor A (raw)": valA,
-            "Valor B (raw)": valB,
-        })
-
-    if not resultados:
-        st.info("Nenhum jogo com valor possível analisado.")
-    else:
-        df = pd.DataFrame(resultados)
-        df["Valor A (raw)"] = df["Valor A (raw)"].round(6)
-        df["Valor B (raw)"] = df["Valor B (raw)"].round(6)
-        df["Odd A"] = df["Odd A"].astype(float)
-        df["Odd B"] = df["Odd B"].astype(float)
-
-        df_valor_positivo = df[
-            ((df["Valor A (raw)"] >= VALOR_MIN) & (df["Valor A (raw)"] <= VALOR_MAX) & (df["Odd A"] >= ODD_MIN) & (df["Odd A"] <= ODD_MAX)) |
-            ((df["Valor B (raw)"] >= VALOR_MIN) & (df["Valor B (raw)"] <= VALOR_MAX) & (df["Odd B"] >= ODD_MIN) & (df["Odd B"] <= ODD_MAX))
-        ]
-
-        def highlight_stakes(val):
-            if val == "5.00":
-                return "background-color:#8ef58e;"
-            elif val == "7.50":
-                return "background-color:#8ef58e;"
-            elif val == "10.00":
-                return "background-color:#8ef58e;"
-            return ""
-
-        def highlight_valor(row):
-            styles = [""] * len(row)
-            try:
-                idx_val_a = row.index.get_loc("Valor A %")
-                idx_val_b = row.index.get_loc("Valor B %")
-                if VALOR_MIN <= row["Valor A (raw)"] <= VALOR_MAX and ODD_MIN <= row["Odd A"] <= ODD_MAX:
-                    styles[idx_val_a] = "background-color: #8ef58e;"
-                if VALOR_MIN <= row["Valor B (raw)"] <= VALOR_MAX and ODD_MIN <= row["Odd B"] <= ODD_MAX:
-                    styles[idx_val_b] = "background-color: #8ef58e;"
-            except KeyError:
-                pass
-            return styles
-
-        styled = df_valor_positivo.style.apply(highlight_valor, axis=1)\
-                                      .applymap(highlight_stakes, subset=["Stake A (€)", "Stake B (€)"])
-
-        st.dataframe(styled.format(precision=2), use_container_width=True)
-
-    st.caption("Legenda stake: 5€ [baixa], 7.5€ [média], 10€ [alta]")
-
-st.divider()
-st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
+        pA = elo_prob(eloFA, elo
