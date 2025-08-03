@@ -14,9 +14,9 @@ st.markdown("""
       .main-title {color:#176ab4; font-size:2.5em; font-weight:700; margin-bottom:0.2em;}
       .stMetric {background-color:#e4f1fb !important; border-radius:8px;}
       .faixa-stake {font-weight:bold; padding:2px 10px; border-radius:8px;}
-      .stake-low {background:#e3fde3; color:#2e7d32;}
+      .stake-low {background:#fff5cc; color:#ad8506;}
       .stake-mid {background:#fff5cc; color:#ad8506;}
-      .stake-high {background:#ffeaea; color:#b13d3d;}
+      .stake-high {background:#fff5cc; color:#ad8506;}
       .custom-sep {border-bottom:1px solid #daecfa; margin:20px 0 20px 0;}
     </style>
 """, unsafe_allow_html=True)
