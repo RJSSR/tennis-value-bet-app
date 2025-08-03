@@ -499,11 +499,11 @@ with tab2:
 
         def highlight_stakes(val):
             if val == "5.00":
-                return "background-color:#fff5cc;"
+                return "background-color:#8ef58e;"
             elif val == "7.50":
-                return "background-color:#fff5cc;"
+                return "background-color:#8ef58e;"
             elif val == "10.00":
-                return "background-color:#fff5cc;"
+                return "background-color:#8ef58e;"
             return ""
 
         def highlight_valor(row):
