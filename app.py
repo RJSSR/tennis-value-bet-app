@@ -9,7 +9,6 @@ import importlib.util
 
 BASE_URL = "https://www.tennisexplorer.com"
 TORNEIOS_PERMITIDOS = [
-    # ... tua lista de torneios (igual ao original)
     "Acapulco", "Adelaide", "Adelaide 2", "Almaty", "Antwerp", "Astana", "Atlanta", "ATP Cup",
     "Auckland", "Australian Open", "Banja Luka", "Barcelona", "Basel", "Bastad", "Beijing",
     "Belgrade", "Belgrade 2", "Brisbane", "Bucharest", "Buenos Aires", "Chengdu", "Cincinnati",
@@ -185,12 +184,26 @@ def elo_prob(elo_a, elo_b):
 def value_bet(prob, odd):
     return prob * odd - 1
 
-# --- STAKE PROPORCIONAL AO VALOR (min 5€, max 30€, base para valor 0.25 é 30€) ---
-def stake_proporcional_valor(valor, stake_base=30.0, stake_min=5.0, stake_max=30.0, valor_max=0.25):
-    proporcao = max(0, min(valor / valor_max, 1))
-    stake = stake_base * proporcao
-    stake_final = 0 if valor <= 0 else max(stake_min, min(stake, stake_max))
-    return round(stake_final, 2)
+# --- NOVA FUNÇÃO: STAKE SEGMENTADA POR FAIXAS ---
+def stake_por_faixa(valor):
+    """
+    Retorna a stake (em euros) baseada no valor esperado da aposta (valor),
+    conforme faixas definidas:
+    - 0.03 <= valor < 0.11 : 5 euros
+    - 0.11 <= valor < 0.18 : 7.5 euros
+    - 0.18 <= valor <= 0.25: 10 euros
+    - valores fora desses intervalos retornam 0 (não apostar)
+    """
+    if valor < 0.03 or valor > 0.25:
+        return 0.0
+    elif 0.03 <= valor < 0.11:
+        return 5.0
+    elif 0.11 <= valor < 0.18:
+        return 7.5
+    elif 0.18 <= valor <= 0.25:
+        return 10.0
+    else:
+        return 0.0
 
 def encontrar_yelo(nome, yelo_df):
     nrm_nome = normalizar_nome(nome)
@@ -322,9 +335,8 @@ corr_odd_b = 1 / corr_p_b
 valor_a = value_bet(prob_a, corr_odd_a)
 valor_b = value_bet(prob_b, corr_odd_b)
 
-# Novo: staking recomendado com mínimo e máximo definidos (em €)
-stake_a = stake_proporcional_valor(valor_a)
-stake_b = stake_proporcional_valor(valor_b)
+stake_a = stake_por_faixa(valor_a)
+stake_b = stake_por_faixa(valor_b)
 
 st.markdown("---")
 col1, col2 = st.columns(2)
@@ -379,10 +391,12 @@ with st.expander("Detalhes completos Elo/YElo e como funciona o cálculo"):
     Valor = Probabilidade \times Odd_{corrigida} - 1
     $$
 
-    **Stake proporcional ao valor:** a stake recomendada para cada aposta é calculada proporcionalmente ao valor esperado, entre 5€ (mínimo) e 30€ (máximo), sendo stake cheia para valor ≥ 0.25.
+    A aposta (stake) recomendada segue faixas definidas pelo valor esperado:
+    - 3% a 11% → 5€
+    - 11% a 18% → 7,5€
+    - 18% a 25% → 10€
     """, unsafe_allow_html=True)
 
-# Análise automática com staking proporcional ao valor
 with st.expander("Análise automática: jogos com valor positivo"):
     if st.button("Analisar todos os jogos"):
         resultados = []
@@ -430,8 +444,8 @@ with st.expander("Análise automática: jogos com valor positivo"):
             valA = value_bet(pA, corr_oA)
             valB = value_bet(pB, corr_oB)
 
-            stakeA = stake_proporcional_valor(valA)
-            stakeB = stake_proporcional_valor(valB)
+            stakeA = stake_por_faixa(valA)
+            stakeB = stake_por_faixa(valB)
 
             resultados.append({
                 "Jogo": f"{jogador_a} vs {jogador_b}",
@@ -450,11 +464,9 @@ with st.expander("Análise automática: jogos com valor positivo"):
             st.info("Nenhum jogo com valor possível analisado.")
         else:
             df = pd.DataFrame(resultados)
-            # Converter odds para float para filtragem correta
             df["Odd A"] = df["Odd A"].astype(float)
             df["Odd B"] = df["Odd B"].astype(float)
 
-            # Filtrar apenas jogos com valor positivo (em A ou B) e odds dentro do intervalo definido
             df_valor_positivo = df[
                 ((df["Valor A (raw)"] >= 0.03) & (df["Valor A (raw)"] <= 0.25) & (df["Odd A"] >= 1.45) & (df["Odd A"] <= 3.00)) |
                 ((df["Valor B (raw)"] >= 0.03) & (df["Valor B (raw)"] <= 0.25) & (df["Odd B"] >= 1.45) & (df["Odd B"] <= 3.00))
@@ -476,5 +488,5 @@ with st.expander("Análise automática: jogos com valor positivo"):
             styled = df_valor_positivo.style.apply(highlight_valor, axis=1)
             st.dataframe(styled, use_container_width=True)
 
-# Créditos e fonte no final do app
+# Créditos e fonte no final
 st.markdown("### Fontes: tennisexplorer.com e tennisabstract.com | App experimental")
