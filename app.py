@@ -23,7 +23,7 @@ st.markdown("""
 
 st.markdown('<div class="main-title">🎾 Análise de Valor em Apostas de Ténis — Torneios ATP</div>', unsafe_allow_html=True)
 
-# ==== Mapeamento superfícies PT -> EN e inverso ====
+# ==== Mapeamentos superfícies PT -> EN e inverso ====
 superficies_map = {"Piso Duro": "Hard", "Terra": "Clay", "Relva": "Grass"}
 superficies_map_inv = {v: k for k, v in superficies_map.items()}
 
@@ -47,7 +47,7 @@ if importlib.util.find_spec("html5lib") is None:
     st.error("Dependência obrigatória 'html5lib' ausente. Instale com:\npip install html5lib")
     st.stop()
 
-# ==== Funções de dados e utilitários ====
+# ==== Funções utilitárias e de dados ====
 
 def limpar_numero_ranking(nome):
     return re.sub(r"\s*\(\d+\)", "", nome or "").strip()
@@ -286,6 +286,9 @@ if not jogos:
 
 tab1, tab2 = st.tabs(["🔎 Análise Manual", "🤖 Análise Automática"])
 
+# Tolerância para arredondamento
+TOLERANCIA = 1e-6
+
 # ==== TAB1: Análise Manual ====
 with tab1:
     st.header("Selecione o jogo manualmente")
@@ -341,15 +344,20 @@ with tab1:
     valor_a = value_bet(prob_a, corr_odd_a)
     valor_b = value_bet(prob_b, corr_odd_b)
 
-    stake_a = stake_por_faixa(valor_a)
-    stake_b = stake_por_faixa(valor_b)
+    # Ajuste com arredondamento para evitar erros de float
+    valor_a_arred = round(valor_a, 6)
+    valor_b_arred = round(valor_b, 6)
+
+    stake_a = stake_por_faixa(valor_a_arred)
+    stake_b = stake_por_faixa(valor_b_arred)
 
     st.divider()
     colA, colB = st.columns(2)
     with colA:
         st.metric("Prob. vitória (A)", f"{prob_a*100:.1f}%")
         st.metric("Valor esperado (A)", f"{valor_a*100:.1f}%")
-        if 3.00 >= odd_a >= 1.45 and 0.03 <= valor_a <= 0.25:
+        # Mostrar stake SÓ se odd >= 1.45 e valor esperado na faixa (com tolerância)
+        if 3.00 >= odd_a >= 1.45 and (0.03 - TOLERANCIA) <= valor_a_arred <= (0.25 + TOLERANCIA):
             classe_stake = "stake-low" if stake_a == 5 else ("stake-mid" if stake_a == 7.5 else "stake-high" if stake_a == 10 else "")
             st.markdown(f"<span class='faixa-stake {classe_stake}'>Stake recomendada: €{stake_a:.2f}</span>", unsafe_allow_html=True)
             st.success("Valor positivo ✅")
@@ -358,7 +366,7 @@ with tab1:
     with colB:
         st.metric("Prob. vitória (B)", f"{prob_b*100:.1f}%")
         st.metric("Valor esperado (B)", f"{valor_b*100:.1f}%")
-        if 3.00 >= odd_b >= 1.45 and 0.03 <= valor_b <= 0.25:
+        if 3.00 >= odd_b >= 1.45 and (0.03 - TOLERANCIA) <= valor_b_arred <= (0.25 + TOLERANCIA):
             classe_stake = "stake-low" if stake_b == 5 else ("stake-mid" if stake_b == 7.5 else "stake-high" if stake_b == 10 else "")
             st.markdown(f"<span class='faixa-stake {classe_stake}'>Stake recomendada: €{stake_b:.2f}</span>", unsafe_allow_html=True)
             st.success("Valor positivo ✅")
