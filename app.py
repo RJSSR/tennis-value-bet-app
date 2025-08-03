@@ -7,6 +7,44 @@ from difflib import get_close_matches
 import unicodedata
 import importlib.util
 
+# ======== ESTILO VISUAL/ CSS ========
+st.markdown("""
+    <style>
+    .main {background-color: #f6f8fb;}
+    .stButton>button {background-color:#1976d2; color:white;}
+    .stDataFrame {background-color:white;}
+    .stMetric {background-color:#e3f2fd; border-radius:6px; padding:15px;}
+    .stSuccess {background-color: #c9fbc7;}
+    .stError {background-color: #ffe2e2;}
+    .highlight {background-color: #ccffdd;}
+    h1, h2, h3 {color: #11336b;}
+    .value {font-weight:bold;}
+    </style>
+""", unsafe_allow_html=True)
+
+# ======== SIDEBAR OPCIONAL ========
+with st.sidebar:
+    st.image("https://www.tennisexplorer.com/img/rating.svg", width=100)
+    st.write("by [teambetting experimental]")
+
+# ======== INFO E LOGO PRINCIPAL ========
+st.image("https://www.tennisexplorer.com/img/te_logo.svg", width=200)
+st.title("🎾 Análise de Valor em Apostas de Ténis — ATP")
+
+st.info(
+    "O app calcula **valor de aposta e stake recomendada** para todos os jogos ATP ativos (dados TennisExplorer e Tennis Abstract). As recomendações são puramente matemáticas; caberá a ti analisar o contexto do jogo!"
+)
+
+with st.container():
+    st.subheader("Como Funciona?")
+    st.write(
+        "- **Probabilidades, Elo e yElo** são integrados para estimar valor e stake recomendada por aposta."
+    )
+    st.write(
+        "- **Recomendações**: stakes e valor **apenas se houver edge estatístico e odd adequada**."
+    )
+st.markdown("---")
+
 BASE_URL = "https://www.tennisexplorer.com"
 TORNEIOS_PERMITIDOS = [
     "Acapulco", "Adelaide", "Adelaide 2", "Almaty", "Antwerp", "Astana", "Atlanta", "ATP Cup",
@@ -23,6 +61,7 @@ TORNEIOS_PERMITIDOS = [
     "Umag", "United Cup", "US Open", "Vienna", "Washington", "Wimbledon", "Winston Salem", "Zhuhai"
 ]
 
+# ======== DEPENDÊNCIAS CHECK ========
 if importlib.util.find_spec("html5lib") is None:
     st.error("Dependência obrigatória 'html5lib' ausente. Instale com:\npip install html5lib")
     st.stop()
@@ -184,15 +223,7 @@ def elo_prob(elo_a, elo_b):
 def value_bet(prob, odd):
     return prob * odd - 1
 
-# --- FUNÇÃO DE STAKE SEGMENTADA POR FAIXAS ---
 def stake_por_faixa(valor):
-    """
-    Calcula a stake (em euros) conforme faixas do valor esperado da aposta:
-    - Entre 3% (0.03) e 11% (0.11) → 5 euros
-    - Entre 11% (0.11) e 18% (0.18) → 7,5 euros
-    - Entre 18% (0.18) e 25% (0.25) → 10 euros
-    - Fora destas faixas → 0 (sem aposta)
-    """
     if valor < 0.03 or valor > 0.25:
         return 0.0
     elif 0.03 <= valor < 0.11:
@@ -231,9 +262,8 @@ def match_nome(nome, df_col):
 
 superficies_map = {"Piso Duro":"Hard","Relva":"Grass","Terra Batida":"Clay"}
 
-st.title("Análise de Valor em Apostas de Ténis — Torneios ATP")
-
-if st.button("Atualizar dados"):
+# ======== BOTÕES E DADOS ========
+if st.button("🔄 Atualizar dados"):
     st.cache_data.clear()
     st.info("Dados atualizados!")
 
@@ -245,19 +275,23 @@ if elo_df is None or yelo_df is None or elo_df.empty or yelo_df.empty:
     st.error("Erro a carregar bases Elo ou yElo.")
     st.stop()
 
+# === ESCOLHA DE TORNEIO ===
+st.subheader("🌎 Escolha o Torneio ATP")
 with st.spinner("Detectando torneios ATP..."):
     torneios = obter_torneios_atp_ativos()
-
 if not torneios:
     st.warning("Nenhum torneio ATP ativo encontrado.")
     st.stop()
-
-nome_torneio = st.selectbox("Escolha o torneio ATP:", [t['nome'] for t in torneios])
+nome_torneio = st.selectbox("Torneio ATP:", [t['nome'] for t in torneios])
 url_torneio = next(t['url'] for t in torneios if t['nome'] == nome_torneio)
 
-superficie_nome = st.selectbox("Escolha a superfície", list(superficies_map.keys()), index=0)
+# === ESCOLHA DE SUPERFÍCIE ===
+st.subheader("🛣️ Seleciona a Superfície")
+superficie_nome = st.selectbox("Superfície", list(superficies_map.keys()), index=0)
 superficie = superficies_map[superficie_nome]
 
+# === ESCOLHA DE JOGO ===
+st.subheader("🎯 Escolhe o Jogo")
 with st.spinner(f"Carregando jogos do {nome_torneio}..."):
     jogos = obter_jogos_do_torneio(url_torneio)
 
@@ -265,8 +299,7 @@ if not jogos:
     st.warning("Nenhum jogo encontrado neste torneio.")
     st.stop()
 
-# Seleção manual
-selecionado_label = st.selectbox("Escolha o jogo:", [j['label'] for j in jogos])
+selecionado_label = st.selectbox("Jogo:", [j['label'] for j in jogos])
 selecionado = next(j for j in jogos if j['label'] == selecionado_label)
 
 odd_a = st.number_input(f"Odd para {selecionado['jogador_a']}", value=selecionado['odd_a'] or 1.80, step=0.01, format="%.2f")
@@ -284,7 +317,6 @@ if idx_b is None:
 
 dados_a = elo_df.loc[idx_a]
 dados_b = elo_df.loc[idx_b]
-
 yelo_a = encontrar_yelo(selecionado['jogador_a'], yelo_df)
 yelo_b = encontrar_yelo(selecionado['jogador_b'], yelo_df)
 
@@ -295,7 +327,7 @@ with col1:
         esp_a = float(dados_a[{'Hard':'hElo','Clay':'cElo','Grass':'gElo'}[superficie]])
         yelo_a_f = float(yelo_a)
         elo_final_a = (esp_a / geral_a) * yelo_a_f
-        st.metric("Elo Final " + selecionado['jogador_a'], f"{elo_final_a:.2f}")
+        st.metric("🔵 Elo Final " + selecionado['jogador_a'], f"{elo_final_a:.2f}")
     except:
         st.warning(f"Elo Final indisponível {selecionado['jogador_a']}")
 with col2:
@@ -304,7 +336,7 @@ with col2:
         esp_b = float(dados_b[{'Hard':'hElo','Clay':'cElo','Grass':'gElo'}[superficie]])
         yelo_b_f = float(yelo_b)
         elo_final_b = (esp_b / geral_b) * yelo_b_f
-        st.metric("Elo Final " + selecionado['jogador_b'], f"{elo_final_b:.2f}")
+        st.metric("🟠 Elo Final " + selecionado['jogador_b'], f"{elo_final_b:.2f}")
     except:
         st.warning(f"Elo Final indisponível {selecionado['jogador_b']}")
 
@@ -356,7 +388,9 @@ with col2:
     else:
         st.error("Sem valor ❌")
 
-with st.expander("Detalhes completos Elo/YElo e como funciona o cálculo"):
+# ===== DETALHES E TEORIA =====
+
+with st.expander("📊 Detalhes completos Elo/YElo e como funciona o cálculo"):
     st.write(f"### {selecionado['jogador_a']}")
     st.json(dados_a.to_dict())
     try:
@@ -396,7 +430,9 @@ with st.expander("Detalhes completos Elo/YElo e como funciona o cálculo"):
     - 18% a 25% → 10€
     """, unsafe_allow_html=True)
 
-with st.expander("Análise automática: jogos com valor positivo"):
+# ===== ANÁLISE AUTOMÁTICA =====
+
+with st.expander("🚦 Análise automática: jogos com valor positivo"):
     if st.button("Analisar todos os jogos"):
         resultados = []
         for jogo in jogos:
@@ -463,15 +499,12 @@ with st.expander("Análise automática: jogos com valor positivo"):
             st.info("Nenhum jogo com valor possível analisado.")
         else:
             df = pd.DataFrame(resultados)
-            # Converter odds para float para filtragem correta
             df["Odd A"] = df["Odd A"].astype(float)
             df["Odd B"] = df["Odd B"].astype(float)
-
             df_valor_positivo = df[
                 ((df["Valor A (raw)"] >= 0.03) & (df["Valor A (raw)"] <= 0.25) & (df["Odd A"] >= 1.45) & (df["Odd A"] <= 3.00)) |
                 ((df["Valor B (raw)"] >= 0.03) & (df["Valor B (raw)"] <= 0.25) & (df["Odd B"] >= 1.45) & (df["Odd B"] <= 3.00))
             ]
-
             def highlight_valor(row):
                 styles = [""] * len(row)
                 try:
@@ -484,9 +517,8 @@ with st.expander("Análise automática: jogos com valor positivo"):
                 except KeyError:
                     pass
                 return styles
-
             styled = df_valor_positivo.style.apply(highlight_valor, axis=1)
+            st.markdown("#### <span style='color:green'>Verde claro = aposta potencialmente valiosa</span>", unsafe_allow_html=True)
             st.dataframe(styled, use_container_width=True)
 
-# Créditos e fonte no final do app
 st.markdown("### Fontes: tennisexplorer.com e tennisabstract.com | App experimental")
