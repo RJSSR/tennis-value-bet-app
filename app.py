@@ -249,7 +249,6 @@ def elo_por_superficie(df_jogador, superficie_en):
 
 # ========= INTERFACE ==========
 
-# Obter torneios e configurar sidebar
 torneios = obter_torneios_atp_ativos()
 if not torneios:
     st.error("Não foi possível obter torneios ATP ativos.")
@@ -285,7 +284,6 @@ if not jogos:
     st.warning("Nenhum jogo encontrado neste torneio.")
     st.stop()
 
-# Tabs na interface
 tab1, tab2 = st.tabs(["🔎 Análise Manual", "🤖 Análise Automática"])
 
 # ==== TAB1: Análise Manual ====
@@ -332,7 +330,6 @@ with tab1:
     odd_a = float(odd_a_input)
     odd_b = float(odd_b_input)
 
-    # Ajuste odds removendo margem
     raw_p_a = 1 / odd_a
     raw_p_b = 1 / odd_b
     soma_raw = raw_p_a + raw_p_b
@@ -352,18 +349,18 @@ with tab1:
     with colA:
         st.metric("Prob. vitória (A)", f"{prob_a*100:.1f}%")
         st.metric("Valor esperado (A)", f"{valor_a*100:.1f}%")
-        classe_stake = "stake-low" if stake_a == 5 else ("stake-mid" if stake_a == 7.5 else "stake-high" if stake_a == 10 else "")
-        st.markdown(f"<span class='faixa-stake {classe_stake}'>Stake recomendada: €{stake_a:.2f}</span>", unsafe_allow_html=True)
         if 3.00 >= odd_a >= 1.45 and 0.03 <= valor_a <= 0.25:
+            classe_stake = "stake-low" if stake_a == 5 else ("stake-mid" if stake_a == 7.5 else "stake-high" if stake_a == 10 else "")
+            st.markdown(f"<span class='faixa-stake {classe_stake}'>Stake recomendada: €{stake_a:.2f}</span>", unsafe_allow_html=True)
             st.success("Valor positivo ✅")
         else:
             st.error("Sem valor")
     with colB:
         st.metric("Prob. vitória (B)", f"{prob_b*100:.1f}%")
         st.metric("Valor esperado (B)", f"{valor_b*100:.1f}%")
-        classe_stake = "stake-low" if stake_b == 5 else ("stake-mid" if stake_b == 7.5 else "stake-high" if stake_b == 10 else "")
-        st.markdown(f"<span class='faixa-stake {classe_stake}'>Stake recomendada: €{stake_b:.2f}</span>", unsafe_allow_html=True)
         if 3.00 >= odd_b >= 1.45 and 0.03 <= valor_b <= 0.25:
+            classe_stake = "stake-low" if stake_b == 5 else ("stake-mid" if stake_b == 7.5 else "stake-high" if stake_b == 10 else "")
+            st.markdown(f"<span class='faixa-stake {classe_stake}'>Stake recomendada: €{stake_b:.2f}</span>", unsafe_allow_html=True)
             st.success("Valor positivo ✅")
         else:
             st.error("Sem valor")
