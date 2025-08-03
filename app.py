@@ -329,7 +329,7 @@ with st.sidebar:
 
 if btn_atualizar:
     st.cache_data.clear()
-    st.rerun()
+    st.experimental_rerun()
 
 superficie_en = superficies_map[superficie_pt]
 url_torneio_selec = next(t["url"] for t in torneios if t["nome"] == torneio_selec)
@@ -662,23 +662,40 @@ with tab_auto:
                         salvar_historico(st.session_state["historico_apostas_df"])
                         st.success(f"Aposta {nova_aposta['aposta']} registrada automaticamente (Jogador B)")
 
-# --- Aba Histórico ---
+# --- Aba Histórico com métricas e remoção ---
 with tab_hist:
     st.header("📊 Histórico de Apostas e Retorno")
     df_hist = st.session_state["historico_apostas_df"]
     if not df_hist.empty:
         df_hist_display = df_hist.copy()
         df_hist_display["retorno"] = df_hist_display.apply(calcular_retorno, axis=1)
-        st.dataframe(df_hist_display.drop(columns=["retorno"]), use_container_width=True)
-        st.metric("Retorno Total (€)", f"{df_hist_display['retorno'].sum():.2f}")
-        st.metric("Número de Apostas", len(df_hist))
-        st.metric("Apostas Ganhas", (df_hist["resultado"] == "ganhou").sum())
-    else:
-        st.info("Nenhuma aposta registrada.")
 
-    st.markdown("---")
-    st.subheader("Atualizar resultado de apostas")
-    if not df_hist.empty:
+        # Removendo coluna valor_apostado e retorno no display
+        st.dataframe(df_hist_display.drop(columns=["valor_apostado", "retorno"]), use_container_width=True)
+
+        # Métricas
+        num_apostas = len(df_hist)
+        apostas_ganhas = (df_hist["resultado"] == "ganhou").sum()
+        apostas_perdidas = (df_hist["resultado"] == "perdeu").sum()
+        montante_investido = df_hist["stake"].sum()
+        montante_ganho = df_hist_display["retorno"].sum()
+        yield_percent = ((montante_ganho - montante_investido) / montante_investido * 100) if montante_investido > 0 else 0.0
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Número de Apostas", num_apostas)
+            st.metric("Apostas Ganhas", apostas_ganhas)
+            st.metric("Apostas Perdidas", apostas_perdidas)
+        with col2:
+            st.metric("Montante Investido (€)", f"€{montante_investido:.2f}")
+            st.metric("Montante Ganhou (€)", f"€{montante_ganho:.2f}")
+        with col3:
+            st.metric("Yield (%)", f"{yield_percent:.2f}%")
+
+        st.markdown("---")
+
+        # Atualizar resultado
+        st.subheader("Atualizar resultado de apostas")
         opcoes_evento = [
             f"{i}: {a['evento']} - {a['aposta']} (Resultado: {a['resultado'] or 'não definido'})"
             for i, a in df_hist.iterrows()
@@ -696,8 +713,29 @@ with tab_hist:
                 st.success("Resultado atualizado!")
             else:
                 st.error("Selecione um resultado válido para atualização.")
+
+        st.markdown("---")
+
+        # Remover apostas
+        st.subheader("Remover aposta do histórico (em caso de erro)")
+        opcoes_remover = [
+            f"{i}: {a['evento']} - {a['aposta']} (Resultado: {a['resultado'] or 'não definido'})"
+            for i, a in df_hist.iterrows()
+        ]
+        remover_idx = st.selectbox(
+            "Escolha a aposta para remover",
+            options=range(len(opcoes_remover)),
+            format_func=lambda i: opcoes_remover[i],
+            key="remover_select"
+        )
+        if st.button("Remover aposta selecionada"):
+            st.session_state["historico_apostas_df"] = df_hist.drop(index=remover_idx).reset_index(drop=True)
+            salvar_historico(st.session_state["historico_apostas_df"])
+            st.success(f"Aposta na linha {remover_idx} removida com sucesso!")
+            st.experimental_rerun()
+
     else:
-        st.write("Nenhuma aposta para atualizar.")
+        st.info("Nenhuma aposta registrada.")
 
 st.divider()
 st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
