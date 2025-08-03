@@ -6,6 +6,7 @@ import re
 from difflib import get_close_matches
 import unicodedata
 import os
+import matplotlib.pyplot as plt
 from io import StringIO
 
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
@@ -740,6 +741,43 @@ with tab_hist:
             st.metric("Montante Ganhou (€)", f"€{montante_ganho:.2f}")
         with col3:
             st.metric("Yield (%)", f"{yield_percent:.2f}%")
+
+
+# Após definição de df_hist_resultado:
+df_lucro = df_hist_resultado.copy()
+
+if not df_lucro.empty:
+    # Calcula o lucro da bet: retorno líquido por linha
+    def calc_lucro(row):
+        if row["resultado"] == "ganhou":
+            return row["stake"] * row["odd"] - row["stake"]
+        elif row["resultado"] == "cashout":
+            return row["stake"] * 0.5 - row["stake"]
+        else:
+            return -row["stake"]
+
+    df_lucro["lucro"] = df_lucro.apply(calc_lucro, axis=1)
+    df_lucro["ano_mes"] = pd.to_datetime(df_lucro["data"]).dt.strftime('%Y-%m')
+
+    # Soma mensal por competição
+    grupo = df_lucro.groupby(["ano_mes", "competicao"])["lucro"].sum().reset_index()
+
+    # Pivot table: linhas = meses, colunas = competicao
+    tabela = grupo.pivot(index="ano_mes", columns="competicao", values="lucro").fillna(0).sort_index()
+    tabela["ATP_acum"] = tabela.get("ATP", 0).cumsum()
+    tabela["WTA_acum"] = tabela.get("WTA", 0).cumsum()
+
+    # Gráfico com Matplotlib (100% compatível com Streamlit)
+    fig, ax = plt.subplots(figsize=(8, 4))
+    tabela[["ATP_acum", "WTA_acum"]].plot(ax=ax)
+    ax.set_title("Lucro Acumulado por Mês (ATP / WTA)")
+    ax.set_ylabel("Lucro acumulado (€)")
+    ax.set_xlabel("Ano-Mês")
+    ax.legend(["ATP", "WTA"])
+    plt.xticks(rotation=45)
+    st.pyplot(fig)
+else:
+    st.info("Ainda não há dados suficientes para gerar o gráfico de lucro acumulado por mês.")
 
 st.divider()
 st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
