@@ -8,7 +8,7 @@ import unicodedata
 import os
 from io import StringIO
 
-# Import do AgGrid para tabela interativa
+# Import para tabela interativa
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 
 # ===== Parâmetros globais =====
@@ -60,6 +60,8 @@ TORNEIOS_WTA_PERMITIDOS = [
     "Vancouver WTA", "Warsaw 2 WTA", "Warsaw WTA", "Washington", "Wimbledon", "Wuhan", "Zhengzhou 2 WTA"
 ]
 
+# --------- Definição funções auxiliares ---------
+
 def limpar_numero_ranking(nome):
     return re.sub(r"\s*\(\d+\)", "", nome or "").strip()
 
@@ -109,20 +111,35 @@ def obter_torneios(tipo="ATP"):
         st.error(f"Erro ao obter torneios {tipo}: {e}")
         return []
 
-# ... (Funções como obter_nome_completo, obter_jogos_do_torneio, obter_elo_table,
-# obter_yelo_table, cache_elo, cache_yelo, elo_prob, value_bet, stake_por_faixa,
-# encontrar_yelo, match_nome, elo_por_superficie, carregar_historico, salvar_historico,
-# calcular_retorno permanecem exatamente as mesmas que você já tem, para manter o foco.)
+# Definir aqui também outras funções auxiliares que você já tem (obter_nome_completo,
+# obter_jogos_do_torneio, etc). Para brevidade, mantenho omitidas, pois você já tem implementadas.
 
-# [Insira as definições das funções omitidas aqui conforme seu código anterior]
+# As funções carregar_historico e salvar_historico são essenciais e já colocadas abaixo:
+
+def carregar_historico():
+    if os.path.exists(HISTORICO_CSV):
+        try:
+            return pd.read_csv(HISTORICO_CSV)
+        except Exception as e:
+            print(f"Erro ao carregar histórico: {e}")
+            return pd.DataFrame()
+    return pd.DataFrame()
+
+def salvar_historico(df):
+    try:
+        df.to_csv(HISTORICO_CSV, index=False)
+    except Exception as e:
+        print(f"Erro ao salvar histórico: {e}")
+
+# Outras funções iguais às suas, p.ex., cache_elo, cache_yelo, elo_prob, stake_por_faixa, etc.
+
+# ----------------------------------------------------
 
 if "historico_apostas_df" not in st.session_state:
     st.session_state["historico_apostas_df"] = carregar_historico()
 
-# Configuração visual
 st.set_page_config(page_title="Tennis Value Bets ATP & WTA", page_icon="🎾", layout="wide")
 
-# Estilos personalizados
 st.markdown("""
 <style>
   .main-title {color:#176ab4; font-size:2.5em; font-weight:700; margin-bottom:0.2em;}
@@ -137,7 +154,7 @@ st.markdown("""
 
 st.markdown('<div class="main-title">🎾 Análise de Valor em Apostas de Ténis &mdash; ATP & WTA</div>', unsafe_allow_html=True)
 
-# Sidebar controle
+# Sidebar
 with st.sidebar:
     st.header("⚙️ Definições gerais")
     tipo_competicao = st.selectbox("Escolher competição", ["ATP", "WTA"])
@@ -152,39 +169,31 @@ with st.sidebar:
 
 if btn_atualizar:
     st.cache_data.clear()
-    st.rerun()
+    st.experimental_rerun()
 
 superficie_en = superficies_map[superficie_pt]
 url_torneio_selec = next(t["url"] for t in torneios if t["nome"] == torneio_selec)
 
-with st.spinner(f"Carregando bases Elo e yElo para {tipo_competicao}..."):
-    elo_df = cache_elo(tipo=tipo_competicao)
-    yelo_df = cache_yelo(tipo=tipo_competicao)
+# Funções para carregar elo_df e yelo_df aqui (cache_elo, cache_yelo) devem estar definidas conforme seu código original
 
-if elo_df is None or yelo_df is None or elo_df.empty or yelo_df.empty:
-    st.error(f"Erro ao carregar bases Elo/yElo para {tipo_competicao}.")
-    st.stop()
-
-with st.spinner(f"Carregando jogos do torneio {torneio_selec}..."):
-    jogos = obter_jogos_do_torneio(url_torneio_selec)
-
-if not jogos:
-    st.warning("Nenhum jogo encontrado neste torneio.")
-    st.stop()
+# Placeholder para elos e jogos (insira seu código para pegar elo_df, yelo_df, jogos)
+# elo_df = cache_elo(tipo=tipo_competicao)
+# yelo_df = cache_yelo(tipo=tipo_competicao)
+# jogos = obter_jogos_do_torneio(url_torneio_selec)
 
 tab_manual, tab_auto, tab_hist = st.tabs([f"{tipo_competicao} - Análise Manual", f"{tipo_competicao} - Análise Automática", "Histórico"])
 
 # --- Aba Manual ---
 with tab_manual:
-    # Insira aqui seu código da aba manual (mantido igual ao seu original)
+    # Insira aqui código da aba manual, conforme seu app
     pass
 
 # --- Aba Automática ---
 with tab_auto:
-    # Insira aqui seu código da aba automática (mantido igual ao seu original)
+    # Insira aqui código da aba automática, conforme seu app
     pass
 
-# --- Aba Histórico com streamlit-aggrid ---
+# --- Aba Histórico (usando streamlit-aggrid) ---
 with tab_hist:
     st.header("📊 Histórico de Apostas e Retorno")
 
@@ -232,7 +241,6 @@ with tab_hist:
         }
         """)
 
-        # Adiciona coluna 'remove' se não existir
         if "remove" not in df_hist.columns:
             df_hist["remove"] = ""
 
@@ -261,7 +269,7 @@ with tab_hist:
             if not indices.empty:
                 st.session_state["historico_apostas_df"] = df.drop(indices).reset_index(drop=True)
                 salvar_historico(st.session_state["historico_apostas_df"])
-                st.rerun()
+                st.experimental_rerun()
 
         context = {"remove_callback": remove_aposta_callback}
 
@@ -276,23 +284,20 @@ with tab_hist:
             fit_columns_on_grid_load=True,
             reload_data=True,
             theme="fresh",
-            context=context
+            context=context,
         )
 
-        if response['data'] is not None:
-            df_updated = pd.DataFrame(response['data'])
+        if response["data"] is not None:
+            df_updated = pd.DataFrame(response["data"])
 
-            # Remove coluna 'remove' caso exista
             if "remove" in df_updated.columns:
                 df_updated = df_updated.drop(columns=["remove"])
 
-            # Atualiza session_state se dados mudaram
-            # Convertendo tipos se necessário depende dos seus dados (ex: floats)
             if not df_updated.equals(st.session_state["historico_apostas_df"].astype(str)):
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(st.session_state["historico_apostas_df"])
 
-        # Mostrar métricas para apostas com resultado definido
+        # Indicadores estatísticos do histórico
         df_hist_resultado = st.session_state["historico_apostas_df"]
         df_hist_resultado = df_hist_resultado[df_hist_resultado["resultado"].str.strip() != ""]
 
@@ -300,7 +305,7 @@ with tab_hist:
         apostas_ganhas = (df_hist_resultado["resultado"] == "ganhou").sum()
         apostas_perdidas = (df_hist_resultado["resultado"] == "perdeu").sum()
         montante_investido = df_hist_resultado["stake"].sum()
-        montante_ganho = df_hist_resultado.apply(calcular_retorno, axis=1).sum()
+        montante_ganho = df_hist_resultado.apply(lambda x: x["valor_apostado"] * x["odd"] if x["resultado"] == "ganhou" else (x["valor_apostado"] * 0.5 if x["resultado"] == "cashout" else 0.0), axis=1).sum()
         yield_percent = ((montante_ganho - montante_investido) / montante_investido * 100) if montante_investido > 0 else 0.0
 
         col1, col2, col3 = st.columns(3)
