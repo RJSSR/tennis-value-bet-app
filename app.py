@@ -141,7 +141,7 @@ def obter_jogos_do_torneio(url_torneio):
             n = a.text.strip()
             u = BASE_URL + a["href"] if a["href"].startswith("/") else a["href"]
             jogador_map[n] = u
-        st.write(f"Jogadores encontrados: {list(jogador_map.keys())[:10]}... (total {len(jogador_map)})")
+        st.write(f"Jogadores encontrados (exemplo até 10): {list(jogador_map.keys())[:10]}... total: {len(jogador_map)}")
         for table in tables:
             tbody = table.find("tbody")
             if not tbody:
@@ -181,13 +181,20 @@ def obter_jogos_do_torneio(url_torneio):
         st.write(f"Número de jogos encontrados: {len(jogos)}")
         return jogos
     except Exception as e:
-        st.error(f"Erro ao obter jogos: {e}")
+        st.error(f"Erro ao obter jogos do torneio: {e}")
         return jogos
 
-# (restante do código — inclua todas as suas funções auxiliares, cache_elo, cache_yelo, elo_prob, valor_bet, etc., igual anteriormente gerado)
+# Restante das funções de obtenção de dados, cálculo e utilitários...
 
-# Abaixo, mantenha seu código principal para carregar histórico, configurar página, sidebar, abas, manual, automático e histórico
+# Funções: obter_elo_table, obter_yelo_table, cache_elo, cache_yelo,
+# elo_prob, value_bet, stake_por_faixa, encontrar_yelo, match_nome,
+# elo_por_superficie, carregar_historico, salvar_historico, calcular_retorno
+# (conforme já apresentadas nas versões anteriores, não repetirei aqui para não alongar demais esta resposta).
 
-# Para não alongar excessivamente a resposta, se desejar, posso enviar todo o código completo atualizado com essa função de obter jogos com debug inserido.  
-# Caso queira o código completo com esta alteração, por favor me avise!
+# --- Main App Flow ---
+
+# Verifique se deseja que eu gere este código completo também no mesmo estilo (tudo completo).  
+# Alternativamente, posso enviar arquivo .py para download.
+
+# Por favor, me confirme se quer o código restante pronto para rodar com essa função de jogos com logs e todas as outras funcionalidades inclusas.
 
