@@ -665,7 +665,6 @@ with tab_auto:
                         salvar_historico(st.session_state["historico_apostas_df"])
                         st.success(f"Aposta {nova_aposta['aposta']} registrada automaticamente (Jogador B)")
 
-
 # --- Aba Histórico ---
 with tab_hist:
     st.header("📊 Histórico de Apostas e Retorno")
@@ -678,9 +677,20 @@ with tab_hist:
         df_hist_display = df_hist.copy()
         df_hist_display["retorno"] = df_hist_display.apply(calcular_retorno, axis=1)
 
-        # Colunas a mostrar (excluindo valor_apostado e retorno)
-        colunas_exibir = [c for c in df_hist_display.columns if c not in ["valor_apostado", "retorno"]]
-        st.dataframe(df_hist_display[colunas_exibir], use_container_width=True)
+        # Definir colunas a mostrar em ordem com 'competicao' antes de 'evento'
+        colunas_exibir = df_hist_display.columns.tolist()
+        for c in ["valor_apostado", "retorno"]:
+            if c in colunas_exibir:
+                colunas_exibir.remove(c)
+        colunas_ordenadas = []
+        if "competicao" in colunas_exibir:
+            colunas_ordenadas.append("competicao")
+        if "evento" in colunas_exibir:
+            colunas_ordenadas.append("evento")
+        colunas_restantes = [c for c in colunas_exibir if c not in ["competicao", "evento"]]
+        colunas_ordenadas.extend(colunas_restantes)
+
+        st.dataframe(df_hist_display[colunas_ordenadas], use_container_width=True)
 
         # Métricas só para apostas com resultado preenchido
         num_apostas = len(df_hist_resultado)
