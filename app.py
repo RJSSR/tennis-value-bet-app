@@ -7,7 +7,7 @@ from difflib import get_close_matches
 import unicodedata
 import os
 from io import StringIO
-
+import matplotlib.pyplot as plt
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 
 # ===== Parâmetros globais =====
