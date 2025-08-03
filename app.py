@@ -32,7 +32,7 @@ superficies_map = {"Piso Duro": "Hard", "Terra": "Clay", "Relva": "Grass"}
 
 BASE_URL = "https://www.tennisexplorer.com"
 
-# ===== Listas de torneios permitidos ===== (ATP e WTA conforme seu pedido)
+# ===== Listas torneios =====
 TORNEIOS_ATP_PERMITIDOS = [
     "Acapulco", "Adelaide", "Adelaide 2", "Almaty", "Antwerp", "Astana", "Atlanta", "ATP Cup",
     "Auckland", "Australian Open", "Banja Luka", "Barcelona", "Basel", "Bastad", "Beijing",
@@ -354,7 +354,6 @@ with tab_manual:
     odd_a_input = st.number_input(f"Odd para {selecionado['jogador_a']}", value=selecionado['odd_a'] or 1.80, step=0.01)
     odd_b_input = st.number_input(f"Odd para {selecionado['jogador_b']}", value=selecionado['odd_b'] or 2.00, step=0.01)
 
-    # Escolha qual jogador aposta A ou B (útil para registrar correta aposta)
     jogador_apostar = st.radio("Selecione o jogador para apostar", (selecionado['jogador_a'], selecionado['jogador_b']))
 
     idx_a = match_nome(selecionado['jogador_a'], elo_df['Player'])
@@ -365,6 +364,7 @@ with tab_manual:
     if idx_b is None:
         st.error(f"Não encontrei Elo para: {selecionado['jogador_b']}")
         st.stop()
+
     dados_a = elo_df.loc[idx_a]
     dados_b = elo_df.loc[idx_b]
 
@@ -436,7 +436,7 @@ with tab_manual:
         else:
             st.error("Sem valor")
 
-    # Botão para registrar aposta direto da análise manual
+    # Botão para registrar aposta nesta análise manual
     if st.button("Registrar esta aposta"):
         aposta = {
             "data": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -449,8 +449,6 @@ with tab_manual:
         }
         st.session_state["historico_apostas"].append(aposta)
         st.success(f"Aposta em {jogador_apostar} registrada com odd {odd_usar} e stake €{stake_usar:.2f}")
-
-    st.markdown('<div class="custom-sep"></div>', unsafe_allow_html=True)
 
 # ===== TAB AUTOMÁTICO =====
 with tab_auto:
@@ -486,4 +484,158 @@ with tab_auto:
         eloFA = (eSA / eGA) * yFA
         eloFB = (eSB / eGB) * yFB
 
-        pA = elo_prob(eloFA, elo
+        pA = elo_prob(eloFA, eloFB)
+        pB = 1 - pA
+
+        rawpA = 1 / oA
+        rawpB = 1 / oB
+        sRaw = rawpA + rawpB
+        cA = rawpA / sRaw
+        cB = rawpB / sRaw
+        corr_oA = 1 / cA
+        corr_oB = 1 / cB
+
+        valA = value_bet(pA, corr_oA)
+        valB = value_bet(pB, corr_oB)
+
+        stakeA = stake_por_faixa(valA)
+        stakeB = stake_por_faixa(valB)
+
+        resultados.append({
+            "Jogo": f"{jogador_a} vs {jogador_b}",
+            "Odd A": f"{oA:.2f}",
+            "Odd B": f"{oB:.2f}",
+            "Valor A %": f"{valA*100:.1f}%",
+            "Valor B %": f"{valB*100:.1f}%",
+            "Stake A (€)": f"{stakeA:.2f}",
+            "Stake B (€)": f"{stakeB:.2f}",
+            "Valor A (raw)": valA,
+            "Valor B (raw)": valB,
+            "Jogador A": jogador_a,
+            "Jogador B": jogador_b,
+            "Stake A raw": stakeA,
+            "Stake B raw": stakeB,
+            "Odd A raw": oA,
+            "Odd B raw": oB,
+        })
+
+    if not resultados:
+        st.info("Nenhum jogo com valor possível analisado.")
+    else:
+        df = pd.DataFrame(resultados)
+        df["Valor A (raw)"] = df["Valor A (raw)"].round(6)
+        df["Valor B (raw)"] = df["Valor B (raw)"].round(6)
+        df["Odd A"] = df["Odd A"].astype(float)
+        df["Odd B"] = df["Odd B"].astype(float)
+
+        df_valor_positivo = df[
+            ((df["Valor A (raw)"] >= VALOR_MIN) & (df["Valor A (raw)"] <= VALOR_MAX) &
+             (df["Odd A"] >= ODD_MIN) & (df["Odd A"] <= ODD_MAX)) |
+            ((df["Valor B (raw)"] >= VALOR_MIN) & (df["Valor B (raw)"] <= VALOR_MAX) &
+             (df["Odd B"] >= ODD_MIN) & (df["Odd B"] <= ODD_MAX))
+        ]
+
+        def highlight_stakes(val):
+            if val == "5.00":
+                return "background-color:#8ef58e;"
+            elif val == "7.50":
+                return "background-color:#8ef58e;"
+            elif val == "10.00":
+                return "background-color:#8ef58e;"
+            return ""
+
+        def highlight_valor(row):
+            styles = [""] * len(row)
+            try:
+                idx_val_a = row.index.get_loc("Valor A %")
+                idx_val_b = row.index.get_loc("Valor B %")
+                if VALOR_MIN <= row["Valor A (raw)"] <= VALOR_MAX and ODD_MIN <= row["Odd A"] <= ODD_MAX:
+                    styles[idx_val_a] = "background-color: #8ef58e;"
+                if VALOR_MIN <= row["Valor B (raw)"] <= VALOR_MAX and ODD_MIN <= row["Odd B"] <= ODD_MAX:
+                    styles[idx_val_b] = "background-color: #8ef58e;"
+            except KeyError:
+                pass
+            return styles
+
+        styled = df_valor_positivo.style.apply(highlight_valor, axis=1)\
+                                      .applymap(highlight_stakes, subset=["Stake A (€)", "Stake B (€)"])
+
+        st.dataframe(styled.format(precision=2), use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("Registrar aposta automática")
+        for idx, row in df_valor_positivo.iterrows():
+            col1, col2 = st.columns(2)
+            with col1:
+                # Botão aposta Jogador A
+                if float(row["Stake A (€)"]) > 0:
+                    if st.button(f"Registrar aposta A em {row['Jogo']}", key=f"reg_auto_a_{idx}"):
+                        aposta = {
+                            "data": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "evento": row["Jogo"],
+                            "aposta": row["Jogador A"],
+                            "odd": row["Odd A raw"],
+                            "valor_apostado": row["Stake A raw"],
+                            "stake": row["Stake A raw"],
+                            "resultado": ""
+                        }
+                        st.session_state["historico_apostas"].append(aposta)
+                        st.success(f"Aposta em {aposta['aposta']} registrada automaticamente (Jogador A)")
+            with col2:
+                # Botão aposta Jogador B
+                if float(row["Stake B (€)"]) > 0:
+                    if st.button(f"Registrar aposta B em {row['Jogo']}", key=f"reg_auto_b_{idx}"):
+                        aposta = {
+                            "data": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "evento": row["Jogo"],
+                            "aposta": row["Jogador B"],
+                            "odd": row["Odd B raw"],
+                            "valor_apostado": row["Stake B raw"],
+                            "stake": row["Stake B raw"],
+                            "resultado": ""
+                        }
+                        st.session_state["historico_apostas"].append(aposta)
+                        st.success(f"Aposta em {aposta['aposta']} registrada automaticamente (Jogador B)")
+
+    st.caption("Legenda stake: 5€ [baixa], 7.5€ [média], 10€ [alta]")
+
+# ===== TAB HISTÓRICO =====
+with tab_hist:
+    st.header("📊 Histórico de Apostas e Retorno")
+
+    if st.session_state["historico_apostas"]:
+        df_hist = pd.DataFrame(st.session_state["historico_apostas"])
+
+        df_hist["retorno"] = df_hist.apply(calcular_retorno, axis=1)
+
+        st.dataframe(df_hist.drop(columns=["retorno"]), use_container_width=True)
+
+        st.metric("Retorno Total (€)", f"{df_hist['retorno'].sum():.2f}")
+        st.metric("Número de Apostas", len(df_hist))
+        num_ganhas = (df_hist["resultado"] == "ganhou").sum()
+        st.metric("Apostas Ganhas", num_ganhas)
+    else:
+        st.info("Nenhuma aposta registrada até o momento.")
+
+    st.markdown("---")
+    st.subheader("Atualizar resultado de apostas")
+
+    if st.session_state["historico_apostas"]:
+        opcoes_evento = [f"{i}: {a['evento']} - {a['aposta']} (Resultado: {a['resultado'] or 'não definido'})"
+                         for i, a in enumerate(st.session_state["historico_apostas"])]
+
+        selecionado_idx = st.selectbox("Escolher aposta para atualizar", options=range(len(opcoes_evento)), format_func=lambda i: opcoes_evento[i])
+
+        nova_res = st.selectbox("Resultado", ["", "ganhou", "perdeu", "cashout"], index=0)
+
+        if st.button("Atualizar resultado"):
+            if nova_res:
+                st.session_state["historico_apostas"][selecionado_idx]["resultado"] = nova_res
+                st.success("Resultado atualizado!")
+            else:
+                st.error("Selecione um resultado válido para atualização.")
+    else:
+        st.write("Nenhuma aposta para atualizar.")
+
+st.divider()
+st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
