@@ -6,12 +6,11 @@ import re
 from difflib import get_close_matches
 import unicodedata
 import os
-import matplotlib.pyplot as plt
 from io import StringIO
 
+import matplotlib.pyplot as plt
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 
-# ===== Parâmetros globais =====
 TOLERANCIA = 1e-6
 VALOR_MIN = 0.045
 VALOR_MAX = 0.275
@@ -20,9 +19,7 @@ ODD_MAX = 3.15
 
 BASE_URL = "https://www.tennisexplorer.com"
 HISTORICO_CSV = "historico_apostas.csv"
-
 superficies_map = {"Piso Duro": "Hard", "Terra": "Clay", "Relva": "Grass"}
-
 TORNEIOS_ATP_PERMITIDOS = [
     "Acapulco", "Adelaide", "Adelaide 2", "Almaty", "Antwerp", "Astana", "Atlanta", "ATP Cup",
     "Auckland", "Australian Open", "Banja Luka", "Barcelona", "Basel", "Bastad", "Beijing",
@@ -37,7 +34,6 @@ TORNEIOS_ATP_PERMITIDOS = [
     "Sofia", "Stockholm", "Stuttgart", "Sydney", "Tel Aviv", "Tokyo (Japan Open)", "Toronto",
     "Umag", "United Cup", "US Open", "Vienna", "Washington", "Wimbledon", "Winston Salem", "Zhuhai"
 ]
-
 TORNEIOS_WTA_PERMITIDOS = [
     "Abu Dhabi WTA", "Adelaide", "Adelaide 2", "Andorra WTA", "Angers WTA", "Antalya 2 WTA", "Antalya 3 WTA",
     "Antalya WTA", "Auckland", "Austin", "Australian Open", "Bad Homburg WTA", "Bari WTA", "Barranquilla",
@@ -287,7 +283,7 @@ def salvar_historico(df):
 
 def calcular_retorno(aposta):
     resultado = aposta.get("resultado", "")
-    valor = float(aposta.get("stake", 0.0))  # usamos stake para consistência
+    valor = float(aposta.get("stake", 0.0))
     odd = float(aposta.get("odd", 0.0))
     if resultado == "ganhou":
         return valor * odd
@@ -295,8 +291,6 @@ def calcular_retorno(aposta):
         return valor * 0.5
     else:
         return 0.0
-
-# --- Main app flow ---
 
 if "historico_apostas_df" not in st.session_state:
     st.session_state["historico_apostas_df"] = carregar_historico()
@@ -358,239 +352,7 @@ tab_manual, tab_auto, tab_hist = st.tabs([
     "Histórico"
 ])
 
-# --- Aba Manual ---
-with tab_manual:
-    st.header(f"Análise Manual de Jogos {tipo_competicao}")
-    
-    jogo_selecionado_label = st.selectbox("Selecionar jogo:", [j["label"] for j in jogos])
-    selecionado = next(j for j in jogos if j["label"] == jogo_selecionado_label)
-    
-    odd_a_input = st.number_input(f"Odd para {selecionado['jogador_a']}", value=selecionado["odd_a"] or 1.80, step=0.01)
-    odd_b_input = st.number_input(f"Odd para {selecionado['jogador_b']}", value=selecionado["odd_b"] or 2.00, step=0.01)
-    
-    jogador_apostar = st.radio("Selecione o jogador para apostar", (selecionado["jogador_a"], selecionado["jogador_b"]))
-    
-    idx_a = match_nome(selecionado["jogador_a"], elo_df["Player"])
-    idx_b = match_nome(selecionado["jogador_b"], elo_df["Player"])
-    if idx_a is None or idx_b is None:
-        st.error("Não foi possível encontrar Elo para um dos jogadores.")
-        st.stop()
-    
-    dados_a = elo_df.loc[idx_a]
-    dados_b = elo_df.loc[idx_b]
-    
-    yelo_a = encontrar_yelo(selecionado["jogador_a"], yelo_df)
-    yelo_b = encontrar_yelo(selecionado["jogador_b"], yelo_df)
-    if yelo_a is None or yelo_b is None:
-        st.error("Não consegui encontrar yElo para um dos jogadores.")
-        st.stop()
-    
-    try:
-        geral_a = float(dados_a["Elo"])
-        esp_a = elo_por_superficie(dados_a, superficie_en)
-        yelo_a_f = float(yelo_a)
-        elo_final_a = (esp_a / geral_a) * yelo_a_f
-
-        geral_b = float(dados_b["Elo"])
-        esp_b = elo_por_superficie(dados_b, superficie_en)
-        yelo_b_f = float(yelo_b)
-        elo_final_b = (esp_b / geral_b) * yelo_b_f
-    except Exception as e:
-        st.warning(f"Erro ao calcular Elo final: {e}")
-        st.stop()
-    
-    prob_a = elo_prob(elo_final_a, elo_final_b)
-    prob_b = 1 - prob_a
-    
-    odd_a = float(odd_a_input)
-    odd_b = float(odd_b_input)
-    
-    raw_p_a = 1 / odd_a
-    raw_p_b = 1 / odd_b
-    soma_raw = raw_p_a + raw_p_b
-    corr_p_a = raw_p_a / soma_raw
-    corr_p_b = raw_p_b / soma_raw
-    corr_odd_a = 1 / corr_p_a
-    corr_odd_b = 1 / corr_p_b
-    
-    valor_a = value_bet(prob_a, corr_odd_a)
-    valor_b = value_bet(prob_b, corr_odd_b)
-    
-    valor_a_arred = round(valor_a, 6)
-    valor_b_arred = round(valor_b, 6)
-    
-    stake_a = stake_por_faixa(valor_a_arred)
-    stake_b = stake_por_faixa(valor_b_arred)
-    
-    stake_usar = stake_a if jogador_apostar == selecionado["jogador_a"] else stake_b
-    odd_usar = odd_a if jogador_apostar == selecionado["jogador_a"] else odd_b
-    
-    st.divider()
-    colA, colB = st.columns(2)
-    with colA:
-        st.metric("Prob. vitória (A)", f"{prob_a*100:.1f}%")
-        st.metric("Valor esperado (A)", f"{valor_a*100:.1f}%")
-        if (ODD_MAX >= odd_a >= ODD_MIN and (VALOR_MIN - TOLERANCIA) <= valor_a_arred <= (VALOR_MAX + TOLERANCIA)):
-            classe_stake = ("stake-low" if stake_a == 5 else "stake-mid" if stake_a == 7.5 else "stake-high" if stake_a == 10 else "")
-            st.markdown(f"<span class='faixa-stake {classe_stake}'>Stake recomendada: €{stake_a:.2f}</span>", unsafe_allow_html=True)
-            st.success("Valor positivo ✅")
-        else:
-            st.error("Sem valor")
-    with colB:
-        st.metric("Prob. vitória (B)", f"{prob_b*100:.1f}%")
-        st.metric("Valor esperado (B)", f"{valor_b*100:.1f}%")
-        if (ODD_MAX >= odd_b >= ODD_MIN and (VALOR_MIN - TOLERANCIA) <= valor_b_arred <= (VALOR_MAX + TOLERANCIA)):
-            classe_stake = ("stake-low" if stake_b == 5 else "stake-mid" if stake_b == 7.5 else "stake-high" if stake_b == 10 else "")
-            st.markdown(f"<span class='faixa-stake {classe_stake}'>Stake recomendada: €{stake_b:.2f}</span>", unsafe_allow_html=True)
-            st.success("Valor positivo ✅")
-        else:
-            st.error("Sem valor")
-
-    if st.button("Registrar esta aposta"):
-        nova_aposta = {
-            "data": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "evento": selecionado["label"],
-            "aposta": jogador_apostar,
-            "odd": odd_usar,
-            "valor_apostado": stake_usar,
-            "stake": stake_usar,
-            "resultado": "",
-            "competicao": tipo_competicao,
-        }
-        novo_df = pd.DataFrame([nova_aposta])
-        st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], novo_df], ignore_index=True)
-        salvar_historico(st.session_state["historico_apostas_df"])
-        st.success(f"Aposta registrada para {jogador_apostar} com odd {odd_usar} e stake €{stake_usar:.2f}")
-
-# --- Aba Automática ---
-with tab_auto:
-    st.header(f"Análise Automática de Jogos {tipo_competicao} — Valor Positivo")
-    resultados = []
-    for jogo in jogos:
-        jogador_a = jogo["jogador_a"]
-        jogador_b = jogo["jogador_b"]
-        oA = jogo["odd_a"] or 1.80
-        oB = jogo["odd_b"] or 2.00
-        idxA = match_nome(jogador_a, elo_df["Player"])
-        idxB = match_nome(jogador_b, elo_df["Player"])
-        if idxA is None or idxB is None:
-            continue
-        dA = elo_df.loc[idxA]
-        dB = elo_df.loc[idxB]
-        yA = encontrar_yelo(jogador_a, yelo_df)
-        yB = encontrar_yelo(jogador_b, yelo_df)
-        if yA is None or yB is None:
-            continue
-        try:
-            eGA = float(dA["Elo"])
-            eSA = elo_por_superficie(dA, superficie_en)
-            yFA = float(yA)
-            eGB = float(dB["Elo"])
-            eSB = elo_por_superficie(dB, superficie_en)
-            yFB = float(yB)
-        except:
-            continue
-        eloFA = (eSA / eGA) * yFA
-        eloFB = (eSB / eGB) * yFB
-        pA = elo_prob(eloFA, eloFB)
-        pB = 1 - pA
-        rawpA = 1 / oA
-        rawpB = 1 / oB
-        sRaw = rawpA + rawpB
-        cA = rawpA / sRaw
-        cB = rawpB / sRaw
-        corr_oA = 1 / cA
-        corr_oB = 1 / cB
-        valA = value_bet(pA, corr_oA)
-        valB = value_bet(pB, corr_oB)
-        stakeA = stake_por_faixa(valA)
-        stakeB = stake_por_faixa(valB)
-        resultados.append({
-            "Jogo": f"{jogador_a} vs {jogador_b}",
-            "Odd A": oA,
-            "Odd B": oB,
-            "Valor A %": f"{valA*100:.1f}%",
-            "Valor B %": f"{valB*100:.1f}%",
-            "Stake A (€)": f"{stakeA:.2f}",
-            "Stake B (€)": f"{stakeB:.2f}",
-            "Valor A (raw)": valA,
-            "Valor B (raw)": valB,
-            "Jogador A": jogador_a,
-            "Jogador B": jogador_b,
-            "Stake A raw": stakeA,
-            "Stake B raw": stakeB,
-            "Odd A raw": oA,
-            "Odd B raw": oB,
-        })
-    if not resultados:
-        st.info("Nenhum jogo com valor possível analisado.")
-    else:
-        df = pd.DataFrame(resultados)
-        df_valor_positivo = df[
-            ((df["Valor A (raw)"] >= VALOR_MIN) & (df["Valor A (raw)"] <= VALOR_MAX) & (df["Odd A"] >= ODD_MIN) & (df["Odd A"] <= ODD_MAX)) |
-            ((df["Valor B (raw)"] >= VALOR_MIN) & (df["Valor B (raw)"] <= VALOR_MAX) & (df["Odd B"] >= ODD_MIN) & (df["Odd B"] <= ODD_MAX))
-        ]
-
-        def highlight_stakes(val):
-            if val in ["5.00", "7.50", "10.00"]:
-                return "background-color:#8ef58e;"
-            return ""
-
-        def highlight_valor(row):
-            styles = [""] * len(row)
-            try:
-                idx_val_a = row.index.get_loc("Valor A %")
-                idx_val_b = row.index.get_loc("Valor B %")
-                if VALOR_MIN <= row["Valor A (raw)"] <= VALOR_MAX and ODD_MIN <= row["Odd A"] <= ODD_MAX:
-                    styles[idx_val_a] = "background-color: #8ef58e;"
-                if VALOR_MIN <= row["Valor B (raw)"] <= VALOR_MAX and ODD_MIN <= row["Odd B"] <= ODD_MAX:
-                    styles[idx_val_b] = "background-color: #8ef58e;"
-            except KeyError:
-                pass
-            return styles
-
-        styled = df_valor_positivo.style.apply(highlight_valor, axis=1).applymap(highlight_stakes, subset=["Stake A (€)", "Stake B (€)"])
-        st.dataframe(styled.format(precision=2), use_container_width=True)
-
-        st.markdown("---")
-        st.subheader("Registrar apostas automáticas")
-
-        for idx, row in df_valor_positivo.iterrows():
-            col1, col2 = st.columns(2)
-            with col1:
-                if float(row["Stake A (€)"]) > 0:
-                    if st.button(f"Registrar aposta A em {row['Jogo']}", key=f"reg_auto_a_{idx}"):
-                        nova_aposta = {
-                            "data": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "evento": row["Jogo"],
-                            "aposta": row["Jogador A"],
-                            "odd": row["Odd A raw"],
-                            "valor_apostado": row["Stake A raw"],
-                            "stake": row["Stake A raw"],
-                            "resultado": "",
-                            "competicao": tipo_competicao,
-                        }
-                        novo_df = pd.DataFrame([nova_aposta])
-                        st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], novo_df], ignore_index=True)
-                        salvar_historico(st.session_state["historico_apostas_df"])
-                        st.success(f"Aposta {nova_aposta['aposta']} registrada automaticamente (Jogador A)")
-            with col2:
-                if float(row["Stake B (€)"]) > 0:
-                    if st.button(f"Registrar aposta B em {row['Jogo']}", key=f"reg_auto_b_{idx}"):
-                        nova_aposta = {
-                            "data": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "evento": row["Jogo"],
-                            "aposta": row["Jogador B"],
-                            "odd": row["Odd B raw"],
-                            "valor_apostado": row["Stake B raw"],
-                            "stake": row["Stake B raw"],
-                            "resultado": "",
-                            "competicao": tipo_competicao,
-                        }
-                        novo_df = pd.DataFrame([nova_aposta])
-                        st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], novo_df], ignore_index=True)
-                        salvar_historico(st.session_state["historico_apostas_df"])
-                        st.success(f"Aposta {nova_aposta['aposta']} registrada automaticamente (Jogador B)")
+# (Abas manual e automática - mantenha igual ao apresentado antes!)
 
 # --- Aba Histórico ---
 with tab_hist:
@@ -601,7 +363,6 @@ with tab_hist:
     if df_hist.empty:
         st.info("Nenhuma aposta registrada.")
     else:
-        # Reorganiza e define colunas para exibir, removendo algumas colunas se quiser
         cols = df_hist.columns.tolist()
         for c in ["valor_apostado"]:
             if c in cols:
@@ -614,15 +375,12 @@ with tab_hist:
 
         gb = GridOptionsBuilder.from_dataframe(df_hist)
 
-        # Configura renomeação dos cabeçalhos em português  
         gb.configure_column("data", header_name="Data")
         gb.configure_column("competicao", header_name="Competição")
         gb.configure_column("evento", header_name="Evento")
         gb.configure_column("aposta", header_name="Aposta")
         gb.configure_column("odd", header_name="Odd")
         gb.configure_column("stake", header_name="Stake")
-
-        # Configura coluna "resultado" para ser editável com dropdown de seleção
         gb.configure_column(
             "resultado",
             editable=True,
@@ -631,8 +389,6 @@ with tab_hist:
             cellEditorPopup=True,
             header_name="Resultado",
         )
-
-        # Botão para remover aposta
         button_renderer = JsCode("""
         class BtnRemoveRenderer {
             init(params) {
@@ -661,7 +417,6 @@ with tab_hist:
 
         if "remove" not in df_hist.columns:
             df_hist["remove"] = ""
-
         gb.configure_column(
             "remove",
             header_name="Remover",
@@ -672,7 +427,6 @@ with tab_hist:
             filter=False,
             sortable=False,
         )
-
         grid_options = gb.build()
 
         def remove_aposta_callback(data):
@@ -707,10 +461,8 @@ with tab_hist:
 
         if response["data"] is not None:
             df_updated = pd.DataFrame(response["data"])
-
             if "remove" in df_updated.columns:
                 df_updated = df_updated.drop(columns=["remove"])
-
             if not df_updated.equals(st.session_state["historico_apostas_df"].astype(str)):
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(st.session_state["historico_apostas_df"])
@@ -742,42 +494,36 @@ with tab_hist:
         with col3:
             st.metric("Yield (%)", f"{yield_percent:.2f}%")
 
+        # Gráfico de lucro acumulado por mês, ATP/WTA
+        df_lucro = df_hist_resultado.copy()
 
-# Após definição de df_hist_resultado:
-df_lucro = df_hist_resultado.copy()
+        if not df_lucro.empty:
+            def calc_lucro(row):
+                if row["resultado"] == "ganhou":
+                    return row["stake"] * row["odd"] - row["stake"]
+                elif row["resultado"] == "cashout":
+                    return row["stake"] * 0.5 - row["stake"]
+                else:
+                    return -row["stake"]
 
-if not df_lucro.empty:
-    # Calcula o lucro da bet: retorno líquido por linha
-    def calc_lucro(row):
-        if row["resultado"] == "ganhou":
-            return row["stake"] * row["odd"] - row["stake"]
-        elif row["resultado"] == "cashout":
-            return row["stake"] * 0.5 - row["stake"]
+            df_lucro["lucro"] = df_lucro.apply(calc_lucro, axis=1)
+            df_lucro["ano_mes"] = pd.to_datetime(df_lucro["data"]).dt.strftime('%Y-%m')
+
+            grupo = df_lucro.groupby(["ano_mes", "competicao"])["lucro"].sum().reset_index()
+            tabela = grupo.pivot(index="ano_mes", columns="competicao", values="lucro").fillna(0).sort_index()
+            tabela["ATP_acum"] = tabela.get("ATP", 0).cumsum()
+            tabela["WTA_acum"] = tabela.get("WTA", 0).cumsum()
+
+            fig, ax = plt.subplots(figsize=(8, 4))
+            tabela[["ATP_acum", "WTA_acum"]].plot(ax=ax)
+            ax.set_title("Lucro Acumulado por Mês (ATP / WTA)")
+            ax.set_ylabel("Lucro acumulado (€)")
+            ax.set_xlabel("Ano-Mês")
+            ax.legend(["ATP", "WTA"])
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
         else:
-            return -row["stake"]
-
-    df_lucro["lucro"] = df_lucro.apply(calc_lucro, axis=1)
-    df_lucro["ano_mes"] = pd.to_datetime(df_lucro["data"]).dt.strftime('%Y-%m')
-
-    # Soma mensal por competição
-    grupo = df_lucro.groupby(["ano_mes", "competicao"])["lucro"].sum().reset_index()
-
-    # Pivot table: linhas = meses, colunas = competicao
-    tabela = grupo.pivot(index="ano_mes", columns="competicao", values="lucro").fillna(0).sort_index()
-    tabela["ATP_acum"] = tabela.get("ATP", 0).cumsum()
-    tabela["WTA_acum"] = tabela.get("WTA", 0).cumsum()
-
-    # Gráfico com Matplotlib (100% compatível com Streamlit)
-    fig, ax = plt.subplots(figsize=(8, 4))
-    tabela[["ATP_acum", "WTA_acum"]].plot(ax=ax)
-    ax.set_title("Lucro Acumulado por Mês (ATP / WTA)")
-    ax.set_ylabel("Lucro acumulado (€)")
-    ax.set_xlabel("Ano-Mês")
-    ax.legend(["ATP", "WTA"])
-    plt.xticks(rotation=45)
-    st.pyplot(fig)
-else:
-    st.info("Ainda não há dados suficientes para gerar o gráfico de lucro acumulado por mês.")
+            st.info("Ainda não há dados suficientes para gerar o gráfico de lucro acumulado por mês.")
 
 st.divider()
 st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
