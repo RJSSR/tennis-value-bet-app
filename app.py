@@ -475,6 +475,7 @@ with tab_manual:
             "valor_apostado": stake_usar,
             "stake": stake_usar,
             "resultado": "",
+            "competicao": tipo_competicao,
         }
         novo_df = pd.DataFrame([nova_aposta])
         st.session_state["historico_apostas_df"] = pd.concat(
@@ -638,6 +639,7 @@ with tab_auto:
                             "valor_apostado": row["Stake A raw"],
                             "stake": row["Stake A raw"],
                             "resultado": "",
+                            "competicao": tipo_competicao,
                         }
                         novo_df = pd.DataFrame([nova_aposta])
                         st.session_state["historico_apostas_df"] = pd.concat(
@@ -655,6 +657,7 @@ with tab_auto:
                             "valor_apostado": row["Stake B raw"],
                             "stake": row["Stake B raw"],
                             "resultado": "",
+                            "competicao": tipo_competicao,
                         }
                         novo_df = pd.DataFrame([nova_aposta])
                         st.session_state["historico_apostas_df"] = pd.concat(
@@ -667,17 +670,19 @@ with tab_auto:
 with tab_hist:
     st.header("📊 Histórico de Apostas e Retorno")
     df_hist = st.session_state["historico_apostas_df"]
+
     if not df_hist.empty:
-        # Considera apenas apostas com resultado preenchido para cálculos
+        # Considera apostas com resultado para métricas
         df_hist_resultado = df_hist[df_hist["resultado"].str.strip() != ""]
 
         df_hist_display = df_hist.copy()
         df_hist_display["retorno"] = df_hist_display.apply(calcular_retorno, axis=1)
 
-        # Exibe tabela sem valor_apostado e retorno
-        st.dataframe(df_hist_display.drop(columns=["valor_apostado", "retorno"]), use_container_width=True)
+        # Colunas a mostrar (excluindo valor_apostado e retorno)
+        colunas_exibir = [c for c in df_hist_display.columns if c not in ["valor_apostado", "retorno"]]
+        st.dataframe(df_hist_display[colunas_exibir], use_container_width=True)
 
-        # Métricas calculadas apenas para apostas com resultado
+        # Métricas só para apostas com resultado preenchido
         num_apostas = len(df_hist_resultado)
         apostas_ganhas = (df_hist_resultado["resultado"] == "ganhou").sum()
         apostas_perdidas = (df_hist_resultado["resultado"] == "perdeu").sum()
@@ -698,46 +703,47 @@ with tab_hist:
 
         st.markdown("---")
 
-        # Atualizar resultados
+        # Atualizar resultado
         st.subheader("Atualizar resultado de apostas")
         opcoes_evento = [
-            f"{i}: {a['evento']} - {a['aposta']} (Resultado: {a['resultado'] or 'não definido'})"
+            f"{i}: [{a.get('competicao', 'ND')}] {a['evento']} - {a['aposta']} (Resultado: {a['resultado'] or 'não definido'})"
             for i, a in df_hist.iterrows()
         ]
         selecionado_idx = st.selectbox(
             "Escolher aposta para atualizar",
             options=range(len(opcoes_evento)),
-            format_func=lambda i: opcoes_evento[i],
-        )
+            format_func=lambda i: opcoes_evento[i])
         nova_res = st.selectbox("Resultado", ["", "ganhou", "perdeu", "cashout"], index=0)
         if st.button("Atualizar resultado"):
             if nova_res:
                 st.session_state["historico_apostas_df"].loc[selecionado_idx, "resultado"] = nova_res
                 salvar_historico(st.session_state["historico_apostas_df"])
                 st.success("Resultado atualizado!")
-                st.rerun()  # Atualiza interface imediatamente
+                st.experimental_rerun()
             else:
                 st.error("Selecione um resultado válido para atualização.")
 
         st.markdown("---")
 
-        # Remover apostas
-        st.subheader("Remover aposta do histórico (em caso de erro)")
-        opcoes_remover = [
-            f"{i}: {a['evento']} - {a['aposta']} (Resultado: {a['resultado'] or 'não definido'})"
-            for i, a in df_hist.iterrows()
-        ]
-        remover_idx = st.selectbox(
-            "Escolha a aposta para remover",
-            options=range(len(opcoes_remover)),
-            format_func=lambda i: opcoes_remover[i],
-            key="remover_select"
-        )
-        if st.button("Remover aposta selecionada"):
-            st.session_state["historico_apostas_df"] = df_hist.drop(index=remover_idx).reset_index(drop=True)
-            salvar_historico(st.session_state["historico_apostas_df"])
-            st.success(f"Aposta na linha {remover_idx} removida com sucesso!")
-            st.experimental_rerun()
+        # Remover apostas com botão na linha
+        st.subheader("Remover apostas rapidamente")
+
+        for idx, row in df_hist.iterrows():
+            col1, col2, col3, col4, col5 = st.columns([0.1, 0.3, 0.3, 0.3, 0.3])
+            with col1:
+                if st.button("❌", key=f"remove_{idx}"):
+                    st.session_state["historico_apostas_df"] = df_hist.drop(index=idx).reset_index(drop=True)
+                    salvar_historico(st.session_state["historico_apostas_df"])
+                    st.success(f"Aposta na linha {idx} removida com sucesso!")
+                    st.experimental_rerun()
+            with col2:
+                st.write(f"{row['evento']}")
+            with col3:
+                st.write(f"Aposta: {row['aposta']}")
+            with col4:
+                st.write(f"Resultado: {row['resultado'] or 'não definido'}")
+            with col5:
+                st.write(f"Competição: {row.get('competicao', 'ND')}")
 
     else:
         st.info("Nenhuma aposta registrada.")
