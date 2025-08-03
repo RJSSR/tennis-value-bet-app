@@ -57,7 +57,6 @@ TORNEIOS_WTA_PERMITIDOS = [
     "Vancouver WTA", "Warsaw 2 WTA", "Warsaw WTA", "Washington", "Wimbledon", "Wuhan", "Zhengzhou 2 WTA"
 ]
 
-# --- Funções auxiliares ---
 def limpar_numero_ranking(nome):
     return re.sub(r"\s*\(\d+\)", "", nome or "").strip()
 
@@ -85,7 +84,6 @@ def normalizar_nome(nome):
 
 @st.cache_data(show_spinner=False)
 def obter_torneios(tipo="ATP"):
-    # Retorna lista de torneios com nome e url para tipo 'ATP' ou 'WTA'
     try:
         url = f"{BASE_URL}/matches/"
         r = requests.get(url)
@@ -298,27 +296,25 @@ def calcular_retorno(aposta):
 if "historico_apostas_df" not in st.session_state:
     st.session_state["historico_apostas_df"] = carregar_historico()
 
-# Configurações visuais
+# Configuração visual
 st.set_page_config(page_title="Tennis Value Bets ATP & WTA", page_icon="🎾", layout="wide")
 
-st.markdown(
-    """
+# Estilos personalizados
+st.markdown("""
 <style>
-.main-title {color:#176ab4; font-size:2.5em; font-weight:700; margin-bottom:0.2em;}
-.stMetric {background-color:#e4f1fb !important; border-radius:8px;}
-.faixa-stake {font-weight:bold; padding:2px 10px; border-radius:8px;}
-.stake-low {background:#fff5cc; color:#ad8506;}
-.stake-mid {background:#fff5cc; color:#ad8506;}
-.stake-high {background:#fff5cc; color:#ad8506;}
-.custom-sep {border-bottom:1px solid #daecfa; margin:20px 0 20px 0;}
+  .main-title {color:#176ab4; font-size:2.5em; font-weight:700; margin-bottom:0.2em;}
+  .stMetric {background-color:#e4f1fb !important; border-radius:8px;}
+  .faixa-stake {font-weight:bold; padding:2px 10px; border-radius:8px;}
+  .stake-low {background:#fff5cc; color:#ad8506;}
+  .stake-mid {background:#fff5cc; color:#ad8506;}
+  .stake-high {background:#fff5cc; color:#ad8506;}
+  .custom-sep {border-bottom:1px solid #daecfa; margin:20px 0 20px 0;}
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">🎾 Análise de Valor em Apostas de Ténis &mdash; ATP & WTA</div>', unsafe_allow_html=True)
 
-# Sidebar
+# Sidebar controle
 with st.sidebar:
     st.header("⚙️ Definições gerais")
     tipo_competicao = st.selectbox("Escolher competição", ["ATP", "WTA"])
@@ -353,31 +349,21 @@ if not jogos:
     st.warning("Nenhum jogo encontrado neste torneio.")
     st.stop()
 
-tab_manual, tab_auto, tab_hist = st.tabs(
-    [f"{tipo_competicao} - Análise Manual", f"{tipo_competicao} - Análise Automática", "Histórico"]
-)
+tab_manual, tab_auto, tab_hist = st.tabs([f"{tipo_competicao} - Análise Manual", f"{tipo_competicao} - Análise Automática", "Histórico"])
 
 # --- Aba Manual ---
 with tab_manual:
     st.header(f"Análise Manual de Jogos {tipo_competicao}")
-
     jogo_selecionado_label = st.selectbox("Selecionar jogo:", [j["label"] for j in jogos])
     selecionado = next(j for j in jogos if j["label"] == jogo_selecionado_label)
 
-    odd_a_input = st.number_input(
-        f"Odd para {selecionado['jogador_a']}", value=selecionado["odd_a"] or 1.80, step=0.01
-    )
-    odd_b_input = st.number_input(
-        f"Odd para {selecionado['jogador_b']}", value=selecionado["odd_b"] or 2.00, step=0.01
-    )
+    odd_a_input = st.number_input(f"Odd para {selecionado['jogador_a']}", value=selecionado["odd_a"] or 1.80, step=0.01)
+    odd_b_input = st.number_input(f"Odd para {selecionado['jogador_b']}", value=selecionado["odd_b"] or 2.00, step=0.01)
 
-    jogador_apostar = st.radio(
-        "Selecione o jogador para apostar", (selecionado["jogador_a"], selecionado["jogador_b"])
-    )
+    jogador_apostar = st.radio("Selecione o jogador para apostar", (selecionado["jogador_a"], selecionado["jogador_b"]))
 
     idx_a = match_nome(selecionado["jogador_a"], elo_df["Player"])
     idx_b = match_nome(selecionado["jogador_b"], elo_df["Player"])
-
     if idx_a is None or idx_b is None:
         st.error("Não foi possível encontrar Elo para um dos jogadores.")
         st.stop()
@@ -387,7 +373,6 @@ with tab_manual:
 
     yelo_a = encontrar_yelo(selecionado["jogador_a"], yelo_df)
     yelo_b = encontrar_yelo(selecionado["jogador_b"], yelo_df)
-
     if yelo_a is None or yelo_b is None:
         st.error("Não consegui encontrar yElo para um dos jogadores.")
         st.stop()
@@ -492,13 +477,9 @@ with tab_manual:
             "resultado": "",
         }
         novo_df = pd.DataFrame([nova_aposta])
-        st.session_state["historico_apostas_df"] = pd.concat(
-            [st.session_state["historico_apostas_df"], novo_df], ignore_index=True
-        )
+        st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], novo_df], ignore_index=True)
         salvar_historico(st.session_state["historico_apostas_df"])
-        st.success(
-            f"Aposta registrada para {jogador_apostar} com odd {odd_usar} e stake €{stake_usar:.2f}"
-        )
+        st.success(f"Aposta registrada para {jogador_apostar} com odd {odd_usar} e stake €{stake_usar:.2f}")
 
     with st.expander("📈 Detalhes dos ELOs e Cálculos"):
         col1, col2 = st.columns(2)
@@ -516,8 +497,7 @@ with tab_manual:
             st.write(f"- Elo Final: {elo_final_b:.2f}")
 
     with st.expander("🔬 Explicação dos cálculos e detalhes avançados"):
-        st.markdown(
-            """
+        st.markdown("""
 - Sistema Elo estima força relativa dos jogadores.
 - Probabilidade do Jogador A vencer:
   $$ P(A) = \\frac{1}{1 + 10^{\\frac{Elo_B - Elo_A}{400}}} $$
@@ -531,12 +511,11 @@ with tab_manual:
   | 4.5% a 11%      | 5         |
   | 11% a 18%       | 7.5       |
   | 18% a 27.5%     | 10        |
-"""
-        )
+""")
 
     st.markdown('<div class="custom-sep"></div>', unsafe_allow_html=True)
 
-# --- Aba Automática ---
+# --- Análise Automática ---
 with tab_auto:
     st.header(f"Análise Automática de Jogos {tipo_competicao} — Valor Positivo")
     resultados = []
@@ -603,14 +582,18 @@ with tab_auto:
     else:
         df = pd.DataFrame(resultados)
         df_valor_positivo = df[
-            ((df["Valor A (raw)"] >= VALOR_MIN)
-             & (df["Valor A (raw)"] <= VALOR_MAX)
-             & (df["Odd A"] >= ODD_MIN)
-             & (df["Odd A"] <= ODD_MAX))
-            | ((df["Valor B (raw)"] >= VALOR_MIN)
-               & (df["Valor B (raw)"] <= VALOR_MAX)
-               & (df["Odd B"] >= ODD_MIN)
-               & (df["Odd B"] <= ODD_MAX))
+            (
+                (df["Valor A (raw)"] >= VALOR_MIN)
+                & (df["Valor A (raw)"] <= VALOR_MAX)
+                & (df["Odd A"] >= ODD_MIN)
+                & (df["Odd A"] <= ODD_MAX)
+            )
+            | (
+                (df["Valor B (raw)"] >= VALOR_MIN)
+                & (df["Valor B (raw)"] <= VALOR_MAX)
+                & (df["Odd B"] >= ODD_MIN)
+                & (df["Odd B"] <= ODD_MAX)
+            )
         ]
 
         def highlight_stakes(val):
@@ -632,9 +615,8 @@ with tab_auto:
             return styles
 
         styled = (
-            df_valor_positivo.style.apply(highlight_valor, axis=1).applymap(
-                highlight_stakes, subset=["Stake A (€)", "Stake B (€)"]
-            )
+            df_valor_positivo.style.apply(highlight_valor, axis=1)
+            .applymap(highlight_stakes, subset=["Stake A (€)", "Stake B (€)"])
         )
         st.dataframe(styled.format(precision=2), use_container_width=True)
 
