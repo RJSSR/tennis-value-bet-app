@@ -329,7 +329,7 @@ with st.sidebar:
 
 if btn_atualizar:
     st.cache_data.clear()
-    st.rerun()
+    st.experimental_rerun()
 
 superficie_en = superficies_map[superficie_pt]
 url_torneio_selec = next(t["url"] for t in torneios if t["nome"] == torneio_selec)
@@ -713,48 +713,42 @@ with tab_hist:
 
         st.markdown("---")
 
-        # Atualizar resultado
-        st.subheader("Atualizar resultado de apostas")
-        opcoes_evento = [
-            f"{i}: [{a.get('competicao', 'ND')}] {a['evento']} - {a['aposta']} (Resultado: {a['resultado'] or 'não definido'})"
-            for i, a in df_hist.iterrows()
-        ]
-        selecionado_idx = st.selectbox(
-            "Escolher aposta para atualizar",
-            options=range(len(opcoes_evento)),
-            format_func=lambda i: opcoes_evento[i])
-        nova_res = st.selectbox("Resultado", ["", "ganhou", "perdeu", "cashout"], index=0)
-        if st.button("Atualizar resultado"):
-            if nova_res:
-                st.session_state["historico_apostas_df"].loc[selecionado_idx, "resultado"] = nova_res
-                salvar_historico(st.session_state["historico_apostas_df"])
-                st.success("Resultado atualizado!")
-                st.rerun()
-            else:
-                st.error("Selecione um resultado válido para atualização.")
-
-        st.markdown("---")
-
-        # Remover apostas com botão na linha
-        st.subheader("Remover apostas rapidamente")
+        # Gerenciar apostas individualmente com botões lado a lado e botão remover à direita
+        st.subheader("Gerenciar apostas individualmente")
 
         for idx, row in df_hist.iterrows():
-            col1, col2, col3, col4, col5 = st.columns([0.1, 0.3, 0.3, 0.3, 0.3])
-            with col1:
+            # Botão remover mais à direita
+            cols = st.columns([0.15, 0.2, 0.15, 0.15, 0.15, 0.15, 0.05])
+            # col0: competicao, col1:evento, col2:aposta, col3:select resultado, col4:botao atualizar, col5:resultado, col6:botao remover
+
+            with cols[0]:
+                st.write(row.get("competicao", "ND"))
+            with cols[1]:
+                st.write(row["evento"])
+            with cols[2]:
+                st.write(row["aposta"])
+            with cols[3]:
+                nova_res = st.selectbox(
+                    "Resultado",
+                    options=["", "ganhou", "perdeu", "cashout"],
+                    index=["", "ganhou", "perdeu", "cashout"].index(row["resultado"]) if row["resultado"] in ["ganhou", "perdeu", "cashout"] else 0,
+                    key=f"resultado_{idx}"
+                )
+            with cols[4]:
+                if st.button("Atualizar", key=f"atualiza_{idx}"):
+                    st.session_state["historico_apostas_df"].at[idx, "resultado"] = nova_res
+                    salvar_historico(st.session_state["historico_apostas_df"])
+                    st.success(f"Resultado da aposta na linha {idx} atualizado para '{nova_res}'.")
+                    st.experimental_rerun()
+            with cols[5]:
+                st.write(row["resultado"] or "não definido")
+            with cols[6]:
                 if st.button("❌", key=f"remove_{idx}"):
                     st.session_state["historico_apostas_df"] = df_hist.drop(index=idx).reset_index(drop=True)
                     salvar_historico(st.session_state["historico_apostas_df"])
                     st.success(f"Aposta na linha {idx} removida com sucesso!")
-                    st.rerun()
-            with col2:
-                st.write(f"Competição: {row.get('competicao', 'ND')}")
-            with col3:
-                st.write(f"{row['evento']}")
-            with col4:
-                st.write(f"Aposta: {row['aposta']}")
-            with col5:
-                st.write(f"Resultado: {row['resultado'] or 'não definido'}")
-          
+                    st.experimental_rerun()
+
     else:
         st.info("Nenhuma aposta registrada.")
 
