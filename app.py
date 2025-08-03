@@ -329,7 +329,7 @@ with st.sidebar:
 
 if btn_atualizar:
     st.cache_data.clear()
-    st.rerun()
+    st.experimental_rerun()
 
 superficie_en = superficies_map[superficie_pt]
 url_torneio_selec = next(t["url"] for t in torneios if t["nome"] == torneio_selec)
