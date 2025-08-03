@@ -361,7 +361,6 @@ tab_manual, tab_auto, tab_hist = st.tabs([
 with tab_manual:
     st.header(f"Análise Manual de Jogos {tipo_competicao}")
     
-    # Seleciona jogo
     jogo_selecionado_label = st.selectbox("Selecionar jogo:", [j["label"] for j in jogos])
     selecionado = next(j for j in jogos if j["label"] == jogo_selecionado_label)
     
@@ -596,32 +595,37 @@ with tab_auto:
 with tab_hist:
     st.header("📊 Histórico de Apostas e Retorno")
 
-    # Cópia do dataframe do histórico para manipulação local
     df_hist = st.session_state["historico_apostas_df"].copy()
 
     if df_hist.empty:
         st.info("Nenhuma aposta registrada.")
     else:
-        # Reorganiza as colunas para melhor visualização
+        # Reorganiza e define colunas para exibir, removendo algumas colunas se quiser
         cols = df_hist.columns.tolist()
-        # Remove colunas que não quer mostrar
-        for c in ["valor_apostado", "competicao", "data"]:
+        for c in ["valor_apostado"]:
             if c in cols:
                 cols.remove(c)
 
-        nova_ordem = ["data", "competicao"] + cols
-        nova_ordem = [c for c in nova_ordem if c in df_hist.columns]
+        nova_ordem = ["data", "competicao"] + [c for c in cols if c not in ["data", "competicao"]]
         df_hist = df_hist[nova_ordem].copy()
 
         resultados_validos = ["", "ganhou", "perdeu", "cashout"]
 
         gb = GridOptionsBuilder.from_dataframe(df_hist)
 
-        # Coluna resultado editável com dropdown para validação
+        # Configura renomeação dos cabeçalhos em português  
+        gb.configure_column("data", header_name="Data")
+        gb.configure_column("competicao", header_name="Competição")
+        gb.configure_column("evento", header_name="Evento")
+        gb.configure_column("aposta", header_name="Aposta")
+        gb.configure_column("odd", header_name="Odd")
+        gb.configure_column("stake", header_name="Stake")
+
+        # Configura coluna "resultado" para ser editável com dropdown de seleção
         gb.configure_column(
             "resultado",
             editable=True,
-            cellEditor='agSelectCellEditor',
+            cellEditor="agSelectCellEditor",
             cellEditorParams={"values": resultados_validos},
             cellEditorPopup=True,
             header_name="Resultado",
@@ -706,12 +710,11 @@ with tab_hist:
             if "remove" in df_updated.columns:
                 df_updated = df_updated.drop(columns=["remove"])
 
-            # Atualiza histórico caso haja modificação
             if not df_updated.equals(st.session_state["historico_apostas_df"].astype(str)):
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(st.session_state["historico_apostas_df"])
 
-        # Calcula métricas considerando apenas apostas com resultado definido (não nulo e não vazio)
+        # Somente apostas com resultado preenchido
         df_hist_resultado = st.session_state["historico_apostas_df"]
         df_hist_resultado = df_hist_resultado[
             df_hist_resultado["resultado"].notna() & (df_hist_resultado["resultado"].str.strip() != "")
@@ -734,7 +737,7 @@ with tab_hist:
             st.metric("Apostas Perdidas", apostas_perdidas)
         with col2:
             st.metric("Montante Investido (€)", f"€{montante_investido:.2f}")
-            st.metric("Montante Ganho (€)", f"€{montante_ganho:.2f}")
+            st.metric("Montante Ganhou (€)", f"€{montante_ganho:.2f}")
         with col3:
             st.metric("Yield (%)", f"{yield_percent:.2f}%")
 
