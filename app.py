@@ -33,7 +33,8 @@ superficies_map_inv = {v: k for k, v in superficies_map.items()}
 
 BASE_URL = "https://www.tennisexplorer.com"
 
-# Listas de torneios ATP e WTA permitidos (adapte conforme necessidade)
+# ===== Listas de torneios permitidos =====
+
 TORNEIOS_ATP_PERMITIDOS = [
     "Acapulco", "Adelaide", "Adelaide 2", "Almaty", "Antwerp", "Astana", "Atlanta", "ATP Cup",
     "Auckland", "Australian Open", "Banja Luka", "Barcelona", "Basel", "Bastad", "Beijing",
@@ -50,14 +51,28 @@ TORNEIOS_ATP_PERMITIDOS = [
 ]
 
 TORNEIOS_WTA_PERMITIDOS = [
-    # Ajuste conforme torneios WTA conhecidos/ativos na TennisExplorer
-    "Adelaide WTA", "Dubai WTA", "Doha WTA", "Indian Wells WTA", "Miami WTA", "Madrid WTA",
-    "Rome WTA", "French Open WTA", "Wimbledon WTA", "US Open WTA", "Sydney WTA", "Melbourne WTA",
-    "Prague WTA", "Portoroz WTA", "Luxembourg WTA", "Guadalajara WTA",
-    # Inclua outros conforme necessidade
+    "Abu Dhabi WTA", "Adelaide", "Adelaide 2", "Andorra WTA", "Angers WTA", "Antalya 2 WTA", "Antalya 3 WTA",
+    "Antalya WTA", "Auckland", "Austin", "Australian Open", "Bad Homburg WTA", "Bari WTA", "Barranquilla",
+    "Bastad WTA", "Beijing", "Belgrade", "Belgrade WTA", "Berlin", "Birmingham", "Bogotá WTA", "Bol WTA", "Brisbane",
+    "Bucharest 2 WTA", "Budapest 2 WTA", "Budapest WTA", "Buenos Aires WTA", "Cali", "Cancún WTA", "Charleston",
+    "Charleston 2", "Charleston 3", "Charleston 4", "Chennai WTA", "Chicago 2 WTA", "Chicago 3 WTA", "Chicago WTA",
+    "Cincinnati WTA", "Cleveland WTA", "Cluj-Napoca 2 WTA", "Cluj-Napoca WTA", "Colina WTA", "Columbus WTA",
+    "Concord WTA", "Contrexeville WTA", "Courmayeur WTA", "Doha", "Dubai", "Eastbourne", "Florence WTA",
+    "Florianopolis WTA", "French Open", "Gaiba WTA", "Gdynia", "Grado", "Granby WTA", "Guadalajara 2 WTA",
+    "Guadalajara WTA", "Guangzhou", "Hamburg WTA", "Hertogenbosch", "Hobart", "Hong Kong 2 WTA", "Hong Kong WTA",
+    "Hua Hin 2 WTA", "Hua Hin WTA", "Iasi WTA", "Ilkley WTA", "Indian Wells", "Istanbul WTA", "Jiujiang",
+    "Karlsruhe", "Kozerki", "La Bisbal", "Lausanne", "Limoges", "Linz", "Livesport Prague Open", "Ljubljana WTA",
+    "Lleida", "Luxembourg WTA", "Lyon WTA", "Madrid WTA", "Makarska", "Marbella WTA", "Mérida", "Miami",
+    "Midland WTA", "Monastir", "Monterrey", "Montevideo WTA", "Montreal WTA", "Montreux WTA", "Moscow", "Mumbai WTA",
+    "Newport Beach WTA", "Ningbo WTA", "Nottingham", "Nur-Sultan WTA", "Osaka WTA", "Ostrava WTA", "Palermo",
+    "Paris WTA", "Parma", "Porto WTA", "Portoroz WTA", "Puerto Vallarta", "Queen's Club", "Rabat", "Reus WTA",
+    "Rome 2 WTA", "Rome WTA", "Rouen WTA", "Saint Petersburg WTA", "Saint-Malo WTA", "San Diego", "San Jose WTA",
+    "San Luis Potosi WTA", "Santa Cruz WTA", "Seoul WTA", "Singapore WTA", "Stanford WTA", "Strasbourg", "Stuttgart",
+    "Sydney", "Tallinn", "Tampico WTA", "Tenerife WTA", "Tokyo", "Toronto WTA", "US Open", "Valencia WTA",
+    "Vancouver WTA", "Warsaw 2 WTA", "Warsaw WTA", "Washington", "Wimbledon", "Wuhan", "Zhengzhou 2 WTA"
 ]
 
-# === Funções utilitárias para letras, nomes e limpeza ===
+# ===== Funções de utilitárias =====
 
 def limpar_numero_ranking(nome):
     return re.sub(r"\s*\(\d+\)", "", nome or "").strip()
@@ -84,24 +99,17 @@ def normalizar_nome(nome):
     s = ''.join(c for c in unicodedata.normalize('NFD', nome) if unicodedata.category(c) != 'Mn')
     return s.strip().casefold()
 
-# === Funções para obter torneios ativos na Tennis Explorer - ATP e WTA ===
+# ===== Obter torneios ativos (ATP ou WTA) =====
 
 @st.cache_data(show_spinner=False)
 def obter_torneios(tipo="ATP"):
-    """
-    retorna lista de torneios ativos (dicts: nome, url) para ATP ou WTA
-    """
     url = f"{BASE_URL}/matches/"
     r = requests.get(url)
     r.raise_for_status()
     soup = BeautifulSoup(r.content, "html.parser")
     torneios = []
-    if tipo == "ATP":
-        nomes_permitidos = [t.casefold() for t in TORNEIOS_ATP_PERMITIDOS]
-        seletor = "a[href*='/atp-men/']"
-    else:
-        nomes_permitidos = [t.casefold() for t in TORNEIOS_WTA_PERMITIDOS]
-        seletor = "a[href*='/wta-women/']"
+    nomes_permitidos = [t.casefold() for t in (TORNEIOS_ATP_PERMITIDOS if tipo=="ATP" else TORNEIOS_WTA_PERMITIDOS)]
+    seletor = "a[href*='/atp-men/']" if tipo=="ATP" else "a[href*='/wta-women/']"
     for a in soup.select(seletor):
         nome = a.text.strip()
         href = a.get('href', '')
@@ -113,7 +121,21 @@ def obter_torneios(tipo="ATP"):
                 torneios.append({"nome": nome, "url": url_full})
     return torneios
 
-# === Função para obter jogos do torneio (serve para ATP e WTA) ===
+# ===== Obter jogos do torneio (ATP ou WTA) =====
+@st.cache_data(show_spinner=False)
+def obter_nome_completo(url_jogador):
+    if not url_jogador:
+        return None
+    try:
+        r = requests.get(url_jogador, timeout=15)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.content, "html.parser")
+        h1 = soup.find('h1')
+        if h1:
+            return re.sub(r"\s+", " ", h1.get_text(strip=True))
+    except:
+        return None
+    return None
 
 @st.cache_data(show_spinner=False)
 def obter_jogos_do_torneio(url_torneio):
@@ -165,28 +187,10 @@ def obter_jogos_do_torneio(url_torneio):
             break
     return jogos
 
-@st.cache_data(show_spinner=False)
-def obter_nome_completo(url_jogador):
-    if not url_jogador:
-        return None
-    try:
-        r = requests.get(url_jogador, timeout=15)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.content, "html.parser")
-        h1 = soup.find('h1')
-        if h1:
-            return re.sub(r"\s+", " ", h1.get_text(strip=True))
-    except:
-        return None
-    return None
-
-# === Funções para obter as tabelas Elo e yElo — diferentes para ATP e WTA ===
+# ===== Obter e cachear tabelas Elo / yElo (ATP e WTA) =====
 
 def obter_elo_table(tipo="ATP"):
-    if tipo == "ATP":
-        url = "https://tennisabstract.com/reports/atp_elo_ratings.html"
-    else:
-        url = "https://tennisabstract.com/reports/wta_elo_ratings.html"
+    url = "https://tennisabstract.com/reports/atp_elo_ratings.html" if tipo=="ATP" else "https://tennisabstract.com/reports/wta_elo_ratings.html"
     try:
         r = requests.get(url, timeout=20)
         r.raise_for_status()
@@ -203,10 +207,7 @@ def obter_elo_table(tipo="ATP"):
         return None
 
 def obter_yelo_table(tipo="ATP"):
-    if tipo == "ATP":
-        url = "https://tennisabstract.com/reports/atp_season_yelo_ratings.html"
-    else:
-        url = "https://tennisabstract.com/reports/wta_season_yelo_ratings.html"
+    url = "https://tennisabstract.com/reports/atp_season_yelo_ratings.html" if tipo=="ATP" else "https://tennisabstract.com/reports/wta_season_yelo_ratings.html"
     try:
         r = requests.get(url, timeout=20)
         r.raise_for_status()
@@ -217,7 +218,7 @@ def obter_yelo_table(tipo="ATP"):
             if 'player' in cols and 'yelo' in cols:
                 df.columns = cols
                 df = df.dropna(subset=['player'])
-                df = df.rename(columns={'player':'Player','yelo':'yElo'})
+                df = df.rename(columns={'player':'Player', 'yelo':'yElo'})
                 return df[['Player','yElo']]
     except Exception as e:
         st.error(f"Erro ao obter Yelo table {tipo}: {e}")
@@ -231,10 +232,10 @@ def cache_elo(tipo="ATP"):
 def cache_yelo(tipo="ATP"):
     return obter_yelo_table(tipo)
 
-# === Funções de cálculo para probabilidades, valor e stake ===
+# ===== Cálculos =====
 
 def elo_prob(elo_a, elo_b):
-    return 1/(1 + 10**((elo_b - elo_a)/400))
+    return 1 / (1 + 10**((elo_b - elo_a) / 400))
 
 def value_bet(prob, odd):
     return prob * odd - 1
@@ -267,13 +268,13 @@ def encontrar_yelo(nome, yelo_df):
 def match_nome(nome, df_col):
     nome_norm = normalizar_nome(nome)
     df_norm = df_col.dropna().apply(normalizar_nome)
-    exact_match = df_norm[df_norm==nome_norm]
+    exact_match = df_norm[df_norm == nome_norm]
     if not exact_match.empty:
         return exact_match.index[0]
     else:
         matches = get_close_matches(nome_norm, df_norm.tolist(), n=1, cutoff=0.8)
         if matches:
-            return df_norm[df_norm==matches[0]].index[0]
+            return df_norm[df_norm == matches[0]].index[0]
     return None
 
 def elo_por_superficie(df_jogador, superficie_en):
@@ -281,10 +282,9 @@ def elo_por_superficie(df_jogador, superficie_en):
     try:
         return float(df_jogador[col_map[superficie_en]])
     except:
-        # Caso a coluna não exista ou valor indefinido
         return float(df_jogador.get("Elo", 1500))
 
-# ==== Configuração global dos filtros ====
+# ===== Parâmetros globais =====
 
 TOLERANCIA = 1e-6
 VALOR_MIN = 0.045
@@ -292,11 +292,8 @@ VALOR_MAX = 0.275
 ODD_MIN = 1.425
 ODD_MAX = 3.15
 
-# ===================
-# ===== Interface ====
-# ===================
+# ===== Interface principal =====
 
-# Sidebar para filtros gerais
 with st.sidebar:
     st.header("⚙️ Definições gerais")
     tipo_competicao = st.selectbox("Escolher competição", ["ATP", "WTA"])
@@ -309,18 +306,15 @@ if btn_atualizar:
 
 superficie_en = superficies_map[superficie_pt]
 
-# Obter torneios do tipo escolhido
 torneios = obter_torneios(tipo=tipo_competicao)
 if not torneios:
     st.error(f"Não foi possível obter torneios ativos para {tipo_competicao}.")
     st.stop()
 torneio_nomes = [t['nome'] for t in torneios]
 
-# Seleção torneio dinâmica
 torneio_selec = st.selectbox(f"Selecionar Torneio {tipo_competicao}", torneio_nomes)
 url_torneio_selec = next(t['url'] for t in torneios if t['nome'] == torneio_selec)
 
-# Cache das tabelas Elo e yElo para o tipo escolhido
 with st.spinner(f"Carregando bases Elo e yElo para {tipo_competicao}..."):
     elo_df = cache_elo(tipo=tipo_competicao)
     yelo_df = cache_yelo(tipo=tipo_competicao)
@@ -328,20 +322,19 @@ if elo_df is None or yelo_df is None or elo_df.empty or yelo_df.empty:
     st.error(f"Erro ao carregar bases Elo/yElo para {tipo_competicao}.")
     st.stop()
 
-# Obter jogos do torneio selecionado
 with st.spinner(f"Carregando jogos do torneio {torneio_selec}..."):
     jogos = obter_jogos_do_torneio(url_torneio_selec)
 if not jogos:
     st.warning("Nenhum jogo encontrado neste torneio.")
     st.stop()
 
-# Interface principal com tabs para Manual e Automático, ATP e WTA
 tab_manual, tab_auto = st.tabs([f"{tipo_competicao} - Análise Manual", f"{tipo_competicao} - Análise Automática"])
 
-# ========== Aba manual ==========
+# ===== Tab manual =====
 
 with tab_manual:
     st.header(f"Análise Manual de Jogos {tipo_competicao}")
+
     jogo_selecionado_label = st.selectbox("Selecionar jogo:", [j['label'] for j in jogos])
     selecionado = next(j for j in jogos if j['label'] == jogo_selecionado_label)
 
@@ -405,19 +398,29 @@ with tab_manual:
     st.divider()
     colA, colB = st.columns(2)
     with colA:
-        st.metric("Prob. vitória (A)", f"{prob_a*100:.1f}%")
-        st.metric("Valor esperado (A)", f"{valor_a*100:.1f}%")
+        st.metric("Prob. vitória (A)", f"{prob_a * 100:.1f}%")
+        st.metric("Valor esperado (A)", f"{valor_a * 100:.1f}%")
         if ODD_MAX >= odd_a >= ODD_MIN and (VALOR_MIN - TOLERANCIA) <= valor_a_arred <= (VALOR_MAX + TOLERANCIA):
-            classe_stake = "stake-low" if stake_a == 5 else ("stake-mid" if stake_a == 7.5 else "stake-high" if stake_a == 10 else "")
+            classe_stake = (
+                "stake-low" if stake_a == 5 else
+                "stake-mid" if stake_a == 7.5 else
+                "stake-high" if stake_a == 10 else
+                ""
+            )
             st.markdown(f"<span class='faixa-stake {classe_stake}'>Stake recomendada: €{stake_a:.2f}</span>", unsafe_allow_html=True)
             st.success("Valor positivo ✅")
         else:
             st.error("Sem valor")
     with colB:
-        st.metric("Prob. vitória (B)", f"{prob_b*100:.1f}%")
-        st.metric("Valor esperado (B)", f"{valor_b*100:.1f}%")
+        st.metric("Prob. vitória (B)", f"{prob_b * 100:.1f}%")
+        st.metric("Valor esperado (B)", f"{valor_b * 100:.1f}%")
         if ODD_MAX >= odd_b >= ODD_MIN and (VALOR_MIN - TOLERANCIA) <= valor_b_arred <= (VALOR_MAX + TOLERANCIA):
-            classe_stake = "stake-low" if stake_b == 5 else ("stake-mid" if stake_b == 7.5 else "stake-high" if stake_b == 10 else "")
+            classe_stake = (
+                "stake-low" if stake_b == 5 else
+                "stake-mid" if stake_b == 7.5 else
+                "stake-high" if stake_b == 10 else
+                ""
+            )
             st.markdown(f"<span class='faixa-stake {classe_stake}'>Stake recomendada: €{stake_b:.2f}</span>", unsafe_allow_html=True)
             st.success("Valor positivo ✅")
         else:
@@ -461,10 +464,11 @@ with tab_manual:
 
     st.markdown('<div class="custom-sep"></div>', unsafe_allow_html=True)
 
-# ========== Aba automática ==========
+# ===== Tab automática =====
 
 with tab_auto:
     st.header(f"Análise Automática de Jogos {tipo_competicao} — Valor Positivo")
+
     resultados = []
     for jogo in jogos:
         jogador_a = jogo["jogador_a"]
