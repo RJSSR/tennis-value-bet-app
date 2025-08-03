@@ -207,6 +207,7 @@ def value_bet(prob, odd):
     return prob * odd - 1
 
 def stake_por_faixa(valor):
+    # Ajustado para os novos valores pedidos
     if valor < 0.045 or valor > 0.275:
         return 0.0
     elif 0.045 <= valor < 0.11:
@@ -288,7 +289,7 @@ tab1, tab2 = st.tabs(["🔎 Análise Manual", "🤖 Análise Automática"])
 # Tolerância para arredondamento comparações floats
 TOLERANCIA = 1e-6
 
-# Limites pedidos
+# Limites ajustados
 VALOR_MIN = 0.045
 VALOR_MAX = 0.275
 ODD_MIN = 1.425
@@ -377,6 +378,22 @@ with tab1:
             st.success("Valor positivo ✅")
         else:
             st.error("Sem valor")
+
+    # === INCLUINDO O EXPANDER DE DETALHES DOS ELOS E CÁLCULOS ===
+    with st.expander("📈 Detalhes Elo e Cálculos"):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"### {selecionado['jogador_a']}")
+            st.write(f"Elo Geral: {geral_a:.2f}")
+            st.write(f"Elo {superficie_pt}: {esp_a:.2f}")
+            st.write(f"yElo: {yelo_a_f:.2f}")
+            st.write(f"Elo Final calculado: {elo_final_a:.2f}")
+        with col2:
+            st.write(f"### {selecionado['jogador_b']}")
+            st.write(f"Elo Geral: {geral_b:.2f}")
+            st.write(f"Elo {superficie_pt}: {esp_b:.2f}")
+            st.write(f"yElo: {yelo_b_f:.2f}")
+            st.write(f"Elo Final calculado: {elo_final_b:.2f}")
 
     with st.expander("🔬 Explicação dos cálculos e detalhes avançados"):
         st.markdown("""
