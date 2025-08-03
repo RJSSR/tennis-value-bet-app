@@ -477,7 +477,8 @@ with tab_manual:
             "resultado": "",
         }
         novo_df = pd.DataFrame([nova_aposta])
-        st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], novo_df], ignore_index=True)
+        st.session_state["historico_apostas_df"] = pd.concat(
+            [st.session_state["historico_apostas_df"], novo_df], ignore_index=True)
         salvar_historico(st.session_state["historico_apostas_df"])
         st.success(f"Aposta registrada para {jogador_apostar} com odd {odd_usar} e stake €{stake_usar:.2f}")
 
@@ -514,6 +515,7 @@ with tab_manual:
 """)
 
     st.markdown('<div class="custom-sep"></div>', unsafe_allow_html=True)
+
 
 # --- Análise Automática ---
 with tab_auto:
@@ -639,8 +641,7 @@ with tab_auto:
                         }
                         novo_df = pd.DataFrame([nova_aposta])
                         st.session_state["historico_apostas_df"] = pd.concat(
-                            [st.session_state["historico_apostas_df"], novo_df], ignore_index=True
-                        )
+                            [st.session_state["historico_apostas_df"], novo_df], ignore_index=True)
                         salvar_historico(st.session_state["historico_apostas_df"])
                         st.success(f"Aposta {nova_aposta['aposta']} registrada automaticamente (Jogador A)")
             with col2:
@@ -657,23 +658,23 @@ with tab_auto:
                         }
                         novo_df = pd.DataFrame([nova_aposta])
                         st.session_state["historico_apostas_df"] = pd.concat(
-                            [st.session_state["historico_apostas_df"], novo_df], ignore_index=True
-                        )
+                            [st.session_state["historico_apostas_df"], novo_df], ignore_index=True)
                         salvar_historico(st.session_state["historico_apostas_df"])
                         st.success(f"Aposta {nova_aposta['aposta']} registrada automaticamente (Jogador B)")
 
-# --- Aba Histórico (com cálculos só após resultado) ---
+
+# --- Aba Histórico ---
 with tab_hist:
     st.header("📊 Histórico de Apostas e Retorno")
     df_hist = st.session_state["historico_apostas_df"]
     if not df_hist.empty:
-        # Filtra apostas com resultado definido (não vazio)
+        # Considera apenas apostas com resultado preenchido para cálculos
         df_hist_resultado = df_hist[df_hist["resultado"].str.strip() != ""]
 
         df_hist_display = df_hist.copy()
         df_hist_display["retorno"] = df_hist_display.apply(calcular_retorno, axis=1)
 
-        # Exibir histórico completo sem colunas valor_apostado e retorno
+        # Exibe tabela sem valor_apostado e retorno
         st.dataframe(df_hist_display.drop(columns=["valor_apostado", "retorno"]), use_container_width=True)
 
         # Métricas calculadas apenas para apostas com resultado
@@ -697,7 +698,7 @@ with tab_hist:
 
         st.markdown("---")
 
-        # Atualizar resultado
+        # Atualizar resultados
         st.subheader("Atualizar resultado de apostas")
         opcoes_evento = [
             f"{i}: {a['evento']} - {a['aposta']} (Resultado: {a['resultado'] or 'não definido'})"
@@ -714,6 +715,7 @@ with tab_hist:
                 st.session_state["historico_apostas_df"].loc[selecionado_idx, "resultado"] = nova_res
                 salvar_historico(st.session_state["historico_apostas_df"])
                 st.success("Resultado atualizado!")
+                st.experimental_rerun()  # Atualiza interface imediatamente
             else:
                 st.error("Selecione um resultado válido para atualização.")
 
