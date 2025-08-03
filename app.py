@@ -29,11 +29,8 @@ st.markdown('<div class="main-title">🎾 Análise de Valor em Apostas de Ténis
 
 # ===== Mapas superfícies PT -> EN =====
 superficies_map = {"Piso Duro": "Hard", "Terra": "Clay", "Relva": "Grass"}
-superficies_map_inv = {v: k for k, v in superficies_map.items()}
 
 BASE_URL = "https://www.tennisexplorer.com"
-
-# ===== Listas de torneios permitidos =====
 
 TORNEIOS_ATP_PERMITIDOS = [
     "Acapulco", "Adelaide", "Adelaide 2", "Almaty", "Antwerp", "Astana", "Atlanta", "ATP Cup",
@@ -72,7 +69,7 @@ TORNEIOS_WTA_PERMITIDOS = [
     "Vancouver WTA", "Warsaw 2 WTA", "Warsaw WTA", "Washington", "Wimbledon", "Wuhan", "Zhengzhou 2 WTA"
 ]
 
-# ===== Funções de utilitárias =====
+# ===== Funções utilitárias =====
 
 def limpar_numero_ranking(nome):
     return re.sub(r"\s*\(\d+\)", "", nome or "").strip()
@@ -99,8 +96,6 @@ def normalizar_nome(nome):
     s = ''.join(c for c in unicodedata.normalize('NFD', nome) if unicodedata.category(c) != 'Mn')
     return s.strip().casefold()
 
-# ===== Obter torneios ativos (ATP ou WTA) =====
-
 @st.cache_data(show_spinner=False)
 def obter_torneios(tipo="ATP"):
     url = f"{BASE_URL}/matches/"
@@ -108,8 +103,8 @@ def obter_torneios(tipo="ATP"):
     r.raise_for_status()
     soup = BeautifulSoup(r.content, "html.parser")
     torneios = []
-    nomes_permitidos = [t.casefold() for t in (TORNEIOS_ATP_PERMITIDOS if tipo=="ATP" else TORNEIOS_WTA_PERMITIDOS)]
-    seletor = "a[href*='/atp-men/']" if tipo=="ATP" else "a[href*='/wta-women/']"
+    nomes_permitidos = [t.casefold() for t in (TORNEIOS_ATP_PERMITIDOS if tipo == "ATP" else TORNEIOS_WTA_PERMITIDOS)]
+    seletor = "a[href*='/atp-men/']" if tipo == "ATP" else "a[href*='/wta-women/']"
     for a in soup.select(seletor):
         nome = a.text.strip()
         href = a.get('href', '')
@@ -121,7 +116,6 @@ def obter_torneios(tipo="ATP"):
                 torneios.append({"nome": nome, "url": url_full})
     return torneios
 
-# ===== Obter jogos do torneio (ATP ou WTA) =====
 @st.cache_data(show_spinner=False)
 def obter_nome_completo(url_jogador):
     if not url_jogador:
@@ -187,10 +181,8 @@ def obter_jogos_do_torneio(url_torneio):
             break
     return jogos
 
-# ===== Obter e cachear tabelas Elo / yElo (ATP e WTA) =====
-
 def obter_elo_table(tipo="ATP"):
-    url = "https://tennisabstract.com/reports/atp_elo_ratings.html" if tipo=="ATP" else "https://tennisabstract.com/reports/wta_elo_ratings.html"
+    url = "https://tennisabstract.com/reports/atp_elo_ratings.html" if tipo == "ATP" else "https://tennisabstract.com/reports/wta_elo_ratings.html"
     try:
         r = requests.get(url, timeout=20)
         r.raise_for_status()
@@ -207,7 +199,7 @@ def obter_elo_table(tipo="ATP"):
         return None
 
 def obter_yelo_table(tipo="ATP"):
-    url = "https://tennisabstract.com/reports/atp_season_yelo_ratings.html" if tipo=="ATP" else "https://tennisabstract.com/reports/wta_season_yelo_ratings.html"
+    url = "https://tennisabstract.com/reports/atp_season_yelo_ratings.html" if tipo == "ATP" else "https://tennisabstract.com/reports/wta_season_yelo_ratings.html"
     try:
         r = requests.get(url, timeout=20)
         r.raise_for_status()
@@ -218,8 +210,8 @@ def obter_yelo_table(tipo="ATP"):
             if 'player' in cols and 'yelo' in cols:
                 df.columns = cols
                 df = df.dropna(subset=['player'])
-                df = df.rename(columns={'player':'Player', 'yelo':'yElo'})
-                return df[['Player','yElo']]
+                df = df.rename(columns={'player': 'Player', 'yelo': 'yElo'})
+                return df[['Player', 'yElo']]
     except Exception as e:
         st.error(f"Erro ao obter Yelo table {tipo}: {e}")
         return None
@@ -232,10 +224,8 @@ def cache_elo(tipo="ATP"):
 def cache_yelo(tipo="ATP"):
     return obter_yelo_table(tipo)
 
-# ===== Cálculos =====
-
 def elo_prob(elo_a, elo_b):
-    return 1 / (1 + 10**((elo_b - elo_a) / 400))
+    return 1 / (1 + 10 ** ((elo_b - elo_a) / 400))
 
 def value_bet(prob, odd):
     return prob * odd - 1
@@ -284,15 +274,13 @@ def elo_por_superficie(df_jogador, superficie_en):
     except:
         return float(df_jogador.get("Elo", 1500))
 
-# ===== Parâmetros globais =====
-
 TOLERANCIA = 1e-6
 VALOR_MIN = 0.045
 VALOR_MAX = 0.275
 ODD_MIN = 1.425
 ODD_MAX = 3.15
 
-# ===== Interface principal =====
+# ===== Interface: sidebar com controle para limpar cache e rerun =====
 
 with st.sidebar:
     st.header("⚙️ Definições gerais")
@@ -302,10 +290,13 @@ with st.sidebar:
 
 if btn_atualizar:
     st.cache_data.clear()
-    st.experimental_rerun()
+    # Atenção: O rerun aqui é aceito, pois acontece apenas a partir do clique do botão,
+    # assim evitando loops infinitos
+    st.experimental_rerun()  # Força a app rodar do início já com cache limpo
 
 superficie_en = superficies_map[superficie_pt]
 
+# Obter torneios ativos do tipo escolhido
 torneios = obter_torneios(tipo=tipo_competicao)
 if not torneios:
     st.error(f"Não foi possível obter torneios ativos para {tipo_competicao}.")
@@ -329,8 +320,6 @@ if not jogos:
     st.stop()
 
 tab_manual, tab_auto = st.tabs([f"{tipo_competicao} - Análise Manual", f"{tipo_competicao} - Análise Automática"])
-
-# ===== Tab manual =====
 
 with tab_manual:
     st.header(f"Análise Manual de Jogos {tipo_competicao}")
@@ -398,29 +387,19 @@ with tab_manual:
     st.divider()
     colA, colB = st.columns(2)
     with colA:
-        st.metric("Prob. vitória (A)", f"{prob_a * 100:.1f}%")
-        st.metric("Valor esperado (A)", f"{valor_a * 100:.1f}%")
+        st.metric("Prob. vitória (A)", f"{prob_a*100:.1f}%")
+        st.metric("Valor esperado (A)", f"{valor_a*100:.1f}%")
         if ODD_MAX >= odd_a >= ODD_MIN and (VALOR_MIN - TOLERANCIA) <= valor_a_arred <= (VALOR_MAX + TOLERANCIA):
-            classe_stake = (
-                "stake-low" if stake_a == 5 else
-                "stake-mid" if stake_a == 7.5 else
-                "stake-high" if stake_a == 10 else
-                ""
-            )
+            classe_stake = "stake-low" if stake_a == 5 else ("stake-mid" if stake_a == 7.5 else "stake-high" if stake_a == 10 else "")
             st.markdown(f"<span class='faixa-stake {classe_stake}'>Stake recomendada: €{stake_a:.2f}</span>", unsafe_allow_html=True)
             st.success("Valor positivo ✅")
         else:
             st.error("Sem valor")
     with colB:
-        st.metric("Prob. vitória (B)", f"{prob_b * 100:.1f}%")
-        st.metric("Valor esperado (B)", f"{valor_b * 100:.1f}%")
+        st.metric("Prob. vitória (B)", f"{prob_b*100:.1f}%")
+        st.metric("Valor esperado (B)", f"{valor_b*100:.1f}%")
         if ODD_MAX >= odd_b >= ODD_MIN and (VALOR_MIN - TOLERANCIA) <= valor_b_arred <= (VALOR_MAX + TOLERANCIA):
-            classe_stake = (
-                "stake-low" if stake_b == 5 else
-                "stake-mid" if stake_b == 7.5 else
-                "stake-high" if stake_b == 10 else
-                ""
-            )
+            classe_stake = "stake-low" if stake_b == 5 else ("stake-mid" if stake_b == 7.5 else "stake-high" if stake_b == 10 else "")
             st.markdown(f"<span class='faixa-stake {classe_stake}'>Stake recomendada: €{stake_b:.2f}</span>", unsafe_allow_html=True)
             st.success("Valor positivo ✅")
         else:
@@ -464,11 +443,8 @@ with tab_manual:
 
     st.markdown('<div class="custom-sep"></div>', unsafe_allow_html=True)
 
-# ===== Tab automática =====
-
 with tab_auto:
     st.header(f"Análise Automática de Jogos {tipo_competicao} — Valor Positivo")
-
     resultados = []
     for jogo in jogos:
         jogador_a = jogo["jogador_a"]
@@ -566,7 +542,7 @@ with tab_auto:
             return styles
 
         styled = df_valor_positivo.style.apply(highlight_valor, axis=1)\
-                                     .applymap(highlight_stakes, subset=["Stake A (€)", "Stake B (€)"])
+                                      .applymap(highlight_stakes, subset=["Stake A (€)", "Stake B (€)"])
 
         st.dataframe(styled.format(precision=2), use_container_width=True)
 
