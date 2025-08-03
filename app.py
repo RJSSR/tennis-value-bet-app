@@ -719,7 +719,7 @@ with tab_hist:
                 st.session_state["historico_apostas_df"].loc[selecionado_idx, "resultado"] = nova_res
                 salvar_historico(st.session_state["historico_apostas_df"])
                 st.success("Resultado atualizado!")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Selecione um resultado válido para atualização.")
 
@@ -735,7 +735,7 @@ with tab_hist:
                     st.session_state["historico_apostas_df"] = df_hist.drop(index=idx).reset_index(drop=True)
                     salvar_historico(st.session_state["historico_apostas_df"])
                     st.success(f"Aposta na linha {idx} removida com sucesso!")
-                    st.experimental_rerun()
+                    st.rerun()
             with col2:
                 st.write(f"{row['evento']}")
             with col3:
