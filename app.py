@@ -737,14 +737,14 @@ with tab_hist:
                     st.success(f"Aposta na linha {idx} removida com sucesso!")
                     st.rerun()
             with col2:
-                st.write(f"{row['evento']}")
-            with col3:
-                st.write(f"Aposta: {row['aposta']}")
-            with col4:
-                st.write(f"Resultado: {row['resultado'] or 'não definido'}")
-            with col5:
                 st.write(f"Competição: {row.get('competicao', 'ND')}")
-
+            with col3:
+                st.write(f"{row['evento']}")
+            with col4:
+                st.write(f"Aposta: {row['aposta']}")
+            with col5:
+                st.write(f"Resultado: {row['resultado'] or 'não definido'}")
+          
     else:
         st.info("Nenhuma aposta registrada.")
 
