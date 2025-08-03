@@ -207,13 +207,13 @@ def value_bet(prob, odd):
     return prob * odd - 1
 
 def stake_por_faixa(valor):
-    if valor < 0.03 or valor > 0.25:
+    if valor < 0.045 or valor > 0.275:
         return 0.0
-    elif 0.03 <= valor < 0.11:
+    elif 0.045 <= valor < 0.11:
         return 5.0
     elif 0.11 <= valor < 0.18:
         return 7.5
-    elif 0.18 <= valor <= 0.25:
+    elif 0.18 <= valor <= 0.275:
         return 10.0
     else:
         return 0.0
@@ -248,7 +248,6 @@ def elo_por_superficie(df_jogador, superficie_en):
     return float(df_jogador[col_map[superficie_en]])
 
 # ========= INTERFACE ==========
-
 torneios = obter_torneios_atp_ativos()
 if not torneios:
     st.error("Não foi possível obter torneios ATP ativos.")
@@ -286,8 +285,14 @@ if not jogos:
 
 tab1, tab2 = st.tabs(["🔎 Análise Manual", "🤖 Análise Automática"])
 
-# Tolerância para arredondamento
+# Tolerância para arredondamento comparações floats
 TOLERANCIA = 1e-6
+
+# Limites pedidos
+VALOR_MIN = 0.045
+VALOR_MAX = 0.275
+ODD_MIN = 1.425
+ODD_MAX = 3.15
 
 # ==== TAB1: Análise Manual ====
 with tab1:
@@ -308,11 +313,13 @@ with tab1:
         st.stop()
     dados_a = elo_df.loc[idx_a]
     dados_b = elo_df.loc[idx_b]
+
     yelo_a = encontrar_yelo(selecionado['jogador_a'], yelo_df)
     yelo_b = encontrar_yelo(selecionado['jogador_b'], yelo_df)
     if yelo_a is None or yelo_b is None:
         st.error("Não consegui encontrar yElo para um dos jogadores.")
         st.stop()
+
     try:
         geral_a = float(dados_a['Elo'])
         esp_a = elo_por_superficie(dados_a, superficie_en)
@@ -344,7 +351,6 @@ with tab1:
     valor_a = value_bet(prob_a, corr_odd_a)
     valor_b = value_bet(prob_b, corr_odd_b)
 
-    # Ajuste com arredondamento para evitar erros de float
     valor_a_arred = round(valor_a, 6)
     valor_b_arred = round(valor_b, 6)
 
@@ -356,8 +362,7 @@ with tab1:
     with colA:
         st.metric("Prob. vitória (A)", f"{prob_a*100:.1f}%")
         st.metric("Valor esperado (A)", f"{valor_a*100:.1f}%")
-        # Mostrar stake SÓ se odd >= 1.45 e valor esperado na faixa (com tolerância)
-        if 3.00 >= odd_a >= 1.45 and (0.03 - TOLERANCIA) <= valor_a_arred <= (0.25 + TOLERANCIA):
+        if ODD_MAX >= odd_a >= ODD_MIN and (VALOR_MIN - TOLERANCIA) <= valor_a_arred <= (VALOR_MAX + TOLERANCIA):
             classe_stake = "stake-low" if stake_a == 5 else ("stake-mid" if stake_a == 7.5 else "stake-high" if stake_a == 10 else "")
             st.markdown(f"<span class='faixa-stake {classe_stake}'>Stake recomendada: €{stake_a:.2f}</span>", unsafe_allow_html=True)
             st.success("Valor positivo ✅")
@@ -366,7 +371,7 @@ with tab1:
     with colB:
         st.metric("Prob. vitória (B)", f"{prob_b*100:.1f}%")
         st.metric("Valor esperado (B)", f"{valor_b*100:.1f}%")
-        if 3.00 >= odd_b >= 1.45 and (0.03 - TOLERANCIA) <= valor_b_arred <= (0.25 + TOLERANCIA):
+        if ODD_MAX >= odd_b >= ODD_MIN and (VALOR_MIN - TOLERANCIA) <= valor_b_arred <= (VALOR_MAX + TOLERANCIA):
             classe_stake = "stake-low" if stake_b == 5 else ("stake-mid" if stake_b == 7.5 else "stake-high" if stake_b == 10 else "")
             st.markdown(f"<span class='faixa-stake {classe_stake}'>Stake recomendada: €{stake_b:.2f}</span>", unsafe_allow_html=True)
             st.success("Valor positivo ✅")
@@ -389,9 +394,9 @@ with tab1:
         
           | Intervalo Valor | Stake (€) |
           |-----------------|-----------|
-          | 3% a 11%        | 5         |
+          | 4,5% a 11%      | 5         |
           | 11% a 18%       | 7.5       |
-          | 18% a 25%       | 10        |
+          | 18% a 27,5%     | 10        |
         """)
 
     st.markdown('<div class="custom-sep"></div>', unsafe_allow_html=True)
@@ -462,12 +467,17 @@ with tab2:
         st.info("Nenhum jogo com valor possível analisado.")
     else:
         df = pd.DataFrame(resultados)
+
+        # Arredondar para eliminar problemas de flutuação
+        df["Valor A (raw)"] = df["Valor A (raw)"].round(6)
+        df["Valor B (raw)"] = df["Valor B (raw)"].round(6)
+
         df["Odd A"] = df["Odd A"].astype(float)
         df["Odd B"] = df["Odd B"].astype(float)
 
         df_valor_positivo = df[
-            ((df["Valor A (raw)"] >= 0.03) & (df["Valor A (raw)"] <= 0.25) & (df["Odd A"] >= 1.45) & (df["Odd A"] <= 3.00)) |
-            ((df["Valor B (raw)"] >= 0.03) & (df["Valor B (raw)"] <= 0.25) & (df["Odd B"] >= 1.45) & (df["Odd B"] <= 3.00))
+            ((df["Valor A (raw)"] >= VALOR_MIN) & (df["Valor A (raw)"] <= VALOR_MAX) & (df["Odd A"] >= ODD_MIN) & (df["Odd A"] <= ODD_MAX)) |
+            ((df["Valor B (raw)"] >= VALOR_MIN) & (df["Valor B (raw)"] <= VALOR_MAX) & (df["Odd B"] >= ODD_MIN) & (df["Odd B"] <= ODD_MAX))
         ]
 
         def highlight_stakes(val):
@@ -484,9 +494,9 @@ with tab2:
             try:
                 idx_val_a = row.index.get_loc("Valor A %")
                 idx_val_b = row.index.get_loc("Valor B %")
-                if 0.03 <= row["Valor A (raw)"] <= 0.25 and 1.45 <= row["Odd A"] <= 3.00:
+                if VALOR_MIN <= row["Valor A (raw)"] <= VALOR_MAX and ODD_MIN <= row["Odd A"] <= ODD_MAX:
                     styles[idx_val_a] = "background-color: #8ef58e;"
-                if 0.03 <= row["Valor B (raw)"] <= 0.25 and 1.45 <= row["Odd B"] <= 3.00:
+                if VALOR_MIN <= row["Valor B (raw)"] <= VALOR_MAX and ODD_MIN <= row["Odd B"] <= ODD_MAX:
                     styles[idx_val_b] = "background-color: #8ef58e;"
             except KeyError:
                 pass
