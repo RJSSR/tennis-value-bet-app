@@ -8,8 +8,8 @@ import unicodedata
 import importlib.util
 
 BASE_URL = "https://www.tennisexplorer.com"
-
 TORNEIOS_PERMITIDOS = [
+    # ... tua lista de torneios (igual ao original)
     "Acapulco", "Adelaide", "Adelaide 2", "Almaty", "Antwerp", "Astana", "Atlanta", "ATP Cup",
     "Auckland", "Australian Open", "Banja Luka", "Barcelona", "Basel", "Bastad", "Beijing",
     "Belgrade", "Belgrade 2", "Brisbane", "Bucharest", "Buenos Aires", "Chengdu", "Cincinnati",
@@ -185,11 +185,12 @@ def elo_prob(elo_a, elo_b):
 def value_bet(prob, odd):
     return prob * odd - 1
 
-def kelly_stake(prob, odd_corr, fraction=0.5):
-    b = odd_corr - 1
-    q = 1 - prob
-    kelly = (b * prob - q) / b if b > 0 else 0
-    return max(0, kelly * fraction)  # Meio-Kelly ajustado
+# --- STAKE PROPORCIONAL AO VALOR (min 5€, max 30€, base para valor 0.25 é 30€) ---
+def stake_proporcional_valor(valor, stake_base=30.0, stake_min=5.0, stake_max=30.0, valor_max=0.25):
+    proporcao = max(0, min(valor / valor_max, 1))
+    stake = stake_base * proporcao
+    stake_final = 0 if valor <= 0 else max(stake_min, min(stake, stake_max))
+    return round(stake_final, 2)
 
 def encontrar_yelo(nome, yelo_df):
     nrm_nome = normalizar_nome(nome)
@@ -207,16 +208,16 @@ def encontrar_yelo(nome, yelo_df):
 def match_nome(nome, df_col):
     nome_norm = normalizar_nome(nome)
     df_norm = df_col.dropna().apply(normalizar_nome)
-    exact_match = df_norm[df_norm == nome_norm]
+    exact_match = df_norm[df_norm==nome_norm]
     if not exact_match.empty:
         return exact_match.index[0]
     else:
         matches = get_close_matches(nome_norm, df_norm.tolist(), n=1, cutoff=0.8)
         if matches:
-            return df_norm[df_norm == matches[0]].index[0]
+            return df_norm[df_norm==matches[0]].index[0]
     return None
 
-superficies_map = {"Piso Duro": "Hard", "Relva": "Grass", "Terra Batida": "Clay"}
+superficies_map = {"Piso Duro":"Hard","Relva":"Grass","Terra Batida":"Clay"}
 
 st.title("Análise de Valor em Apostas de Ténis — Torneios ATP")
 
@@ -279,7 +280,7 @@ col1, col2 = st.columns(2)
 with col1:
     try:
         geral_a = float(dados_a['Elo'])
-        esp_a = float(dados_a[{'Hard': 'hElo', 'Clay': 'cElo', 'Grass': 'gElo'}[superficie]])
+        esp_a = float(dados_a[{'Hard':'hElo','Clay':'cElo','Grass':'gElo'}[superficie]])
         yelo_a_f = float(yelo_a)
         elo_final_a = (esp_a / geral_a) * yelo_a_f
         st.metric("Elo Final " + selecionado['jogador_a'], f"{elo_final_a:.2f}")
@@ -288,7 +289,7 @@ with col1:
 with col2:
     try:
         geral_b = float(dados_b['Elo'])
-        esp_b = float(dados_b[{'Hard': 'hElo', 'Clay': 'cElo', 'Grass': 'gElo'}[superficie]])
+        esp_b = float(dados_b[{'Hard':'hElo','Clay':'cElo','Grass':'gElo'}[superficie]])
         yelo_b_f = float(yelo_b)
         elo_final_b = (esp_b / geral_b) * yelo_b_f
         st.metric("Elo Final " + selecionado['jogador_b'], f"{elo_final_b:.2f}")
@@ -321,15 +322,16 @@ corr_odd_b = 1 / corr_p_b
 valor_a = value_bet(prob_a, corr_odd_a)
 valor_b = value_bet(prob_b, corr_odd_b)
 
-stake_a = kelly_stake(prob_a, corr_odd_a)
-stake_b = kelly_stake(prob_b, corr_odd_b)
+# Novo: staking recomendado com mínimo e máximo definidos (em €)
+stake_a = stake_proporcional_valor(valor_a)
+stake_b = stake_proporcional_valor(valor_b)
 
 st.markdown("---")
 col1, col2 = st.columns(2)
 with col1:
     st.metric("Prob. de vitória (A)", f"{prob_a*100:.2f}%")
     st.metric("Valor esperado (A)", f"{valor_a*100:.2f}%")
-    st.markdown(f"**Stake recomendada (meio-Kelly)** para {selecionado['jogador_a']}: {stake_a*100:.2f}% do bankroll")
+    st.markdown(f"**Stake recomendada:** €{stake_a:.2f}")
     if 3.00 >= odd_a_f >= 1.45 and 0.03 <= valor_a <= 0.25:
         st.success("Valor positivo ✅")
     else:
@@ -337,7 +339,7 @@ with col1:
 with col2:
     st.metric("Prob. de vitória (B)", f"{prob_b*100:.2f}%")
     st.metric("Valor esperado (B)", f"{valor_b*100:.2f}%")
-    st.markdown(f"**Stake recomendada (meio-Kelly)** para {selecionado['jogador_b']}: {stake_b*100:.2f}% do bankroll")
+    st.markdown(f"**Stake recomendada:** €{stake_b:.2f}")
     if 3.00 >= odd_b_f >= 1.45 and 0.03 <= valor_b <= 0.25:
         st.success("Valor positivo ✅")
     else:
@@ -377,12 +379,10 @@ with st.expander("Detalhes completos Elo/YElo e como funciona o cálculo"):
     Valor = Probabilidade \times Odd_{corrigida} - 1
     $$
 
-    Um valor esperado positivo indica vantagem estatística na aposta.
-
-    O staking recomendado utiliza o critério meio-Kelly, que sugere a fração do bankroll a apostar para maximizar crescimento e controlar riscos.
+    **Stake proporcional ao valor:** a stake recomendada para cada aposta é calculada proporcionalmente ao valor esperado, entre 5€ (mínimo) e 30€ (máximo), sendo stake cheia para valor ≥ 0.25.
     """, unsafe_allow_html=True)
 
-# Análise automática em bloco expansível com destaque nas células
+# Análise automática com staking proporcional ao valor
 with st.expander("Análise automática: jogos com valor positivo"):
     if st.button("Analisar todos os jogos"):
         resultados = []
@@ -405,10 +405,10 @@ with st.expander("Análise automática: jogos com valor positivo"):
 
             try:
                 eGA = float(dA["Elo"])
-                eSA = float(dA[{"Hard": "hElo", "Clay": "cElo", "Grass": "gElo"}[superficie]])
+                eSA = float(dA[{"Hard":"hElo", "Clay":"cElo", "Grass":"gElo"}[superficie]])
                 yFA = float(yA)
                 eGB = float(dB["Elo"])
-                eSB = float(dB[{"Hard": "hElo", "Clay": "cElo", "Grass": "gElo"}[superficie]])
+                eSB = float(dB[{"Hard":"hElo", "Clay":"cElo", "Grass":"gElo"}[superficie]])
                 yFB = float(yB)
             except:
                 continue
@@ -417,21 +417,21 @@ with st.expander("Análise automática: jogos com valor positivo"):
             eloFB = (eSB / eGB) * yFB
 
             pA = elo_prob(eloFA, eloFB)
-            pB = 1 - pA
+            pB = 1-pA
 
-            rawpA = 1 / oA
-            rawpB = 1 / oB
+            rawpA = 1/oA
+            rawpB = 1/oB
             sRaw = rawpA + rawpB
             cA = rawpA / sRaw
             cB = rawpB / sRaw
-            corr_oA = 1 / cA
-            corr_oB = 1 / cB
+            corr_oA = 1/cA
+            corr_oB = 1/cB
 
             valA = value_bet(pA, corr_oA)
             valB = value_bet(pB, corr_oB)
 
-            stakeA = kelly_stake(pA, corr_oA)
-            stakeB = kelly_stake(pB, corr_oB)
+            stakeA = stake_proporcional_valor(valA)
+            stakeB = stake_proporcional_valor(valB)
 
             resultados.append({
                 "Jogo": f"{jogador_a} vs {jogador_b}",
@@ -441,8 +441,8 @@ with st.expander("Análise automática: jogos com valor positivo"):
                 "Prob B %": f"{pB*100:.2f}%",
                 "Valor A %": f"{valA*100:.2f}%",
                 "Valor B %": f"{valB*100:.2f}%",
-                "Stake A %": f"{stakeA*100:.2f}%",
-                "Stake B %": f"{stakeB*100:.2f}%",
+                "Stake A (€)": f"{stakeA:.2f}",
+                "Stake B (€)": f"{stakeB:.2f}",
                 "Valor A (raw)": valA,
                 "Valor B (raw)": valB,
             })
@@ -476,5 +476,5 @@ with st.expander("Análise automática: jogos com valor positivo"):
             styled = df_valor_positivo.style.apply(highlight_valor, axis=1)
             st.dataframe(styled, use_container_width=True)
 
-# Linha de créditos e fonte no final do app
+# Créditos e fonte no final do app
 st.markdown("### Fontes: tennisexplorer.com e tennisabstract.com | App experimental")
