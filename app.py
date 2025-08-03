@@ -330,7 +330,7 @@ with st.sidebar:
 
 if btn_atualizar:
     st.cache_data.clear()
-    st.experimental_rerun()
+    st.rerun()
 
 superficie_en = superficies_map[superficie_pt]
 
@@ -682,7 +682,7 @@ with tab_hist:
             if not indices.empty:
                 st.session_state["historico_apostas_df"] = df.drop(indices).reset_index(drop=True)
                 salvar_historico(st.session_state["historico_apostas_df"])
-                st.experimental_rerun()
+                st.rerun()
 
         context = {"remove_callback": remove_aposta_callback}
 
