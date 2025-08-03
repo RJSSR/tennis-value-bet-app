@@ -11,6 +11,7 @@ from io import StringIO
 import matplotlib.pyplot as plt
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 
+# ===== Parâmetros globais =====
 TOLERANCIA = 1e-6
 VALOR_MIN = 0.045
 VALOR_MAX = 0.275
@@ -20,6 +21,7 @@ ODD_MAX = 3.15
 BASE_URL = "https://www.tennisexplorer.com"
 HISTORICO_CSV = "historico_apostas.csv"
 superficies_map = {"Piso Duro": "Hard", "Terra": "Clay", "Relva": "Grass"}
+
 TORNEIOS_ATP_PERMITIDOS = [
     "Acapulco", "Adelaide", "Adelaide 2", "Almaty", "Antwerp", "Astana", "Atlanta", "ATP Cup",
     "Auckland", "Australian Open", "Banja Luka", "Barcelona", "Basel", "Bastad", "Beijing",
@@ -34,6 +36,7 @@ TORNEIOS_ATP_PERMITIDOS = [
     "Sofia", "Stockholm", "Stuttgart", "Sydney", "Tel Aviv", "Tokyo (Japan Open)", "Toronto",
     "Umag", "United Cup", "US Open", "Vienna", "Washington", "Wimbledon", "Winston Salem", "Zhuhai"
 ]
+
 TORNEIOS_WTA_PERMITIDOS = [
     "Abu Dhabi WTA", "Adelaide", "Adelaide 2", "Andorra WTA", "Angers WTA", "Antalya 2 WTA", "Antalya 3 WTA",
     "Antalya WTA", "Auckland", "Austin", "Australian Open", "Bad Homburg WTA", "Bari WTA", "Barranquilla",
@@ -352,7 +355,7 @@ tab_manual, tab_auto, tab_hist = st.tabs([
     "Histórico"
 ])
 
-# (Abas manual e automática - mantenha igual ao apresentado antes!)
+# **(Abas manual e automática mantém-se conforme seu código atual)**
 
 # --- Aba Histórico ---
 with tab_hist:
@@ -374,13 +377,14 @@ with tab_hist:
         resultados_validos = ["", "ganhou", "perdeu", "cashout"]
 
         gb = GridOptionsBuilder.from_dataframe(df_hist)
-
+        # Renomeia colunas para exibir em português
         gb.configure_column("data", header_name="Data")
         gb.configure_column("competicao", header_name="Competição")
         gb.configure_column("evento", header_name="Evento")
         gb.configure_column("aposta", header_name="Aposta")
         gb.configure_column("odd", header_name="Odd")
         gb.configure_column("stake", header_name="Stake")
+
         gb.configure_column(
             "resultado",
             editable=True,
@@ -389,6 +393,8 @@ with tab_hist:
             cellEditorPopup=True,
             header_name="Resultado",
         )
+
+        # Botão para remover
         button_renderer = JsCode("""
         class BtnRemoveRenderer {
             init(params) {
@@ -417,6 +423,7 @@ with tab_hist:
 
         if "remove" not in df_hist.columns:
             df_hist["remove"] = ""
+
         gb.configure_column(
             "remove",
             header_name="Remover",
@@ -427,6 +434,7 @@ with tab_hist:
             filter=False,
             sortable=False,
         )
+
         grid_options = gb.build()
 
         def remove_aposta_callback(data):
@@ -467,7 +475,7 @@ with tab_hist:
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(st.session_state["historico_apostas_df"])
 
-        # Somente apostas com resultado preenchido
+        # Somente apostas com resultado definido (não vazio e não nulo)
         df_hist_resultado = st.session_state["historico_apostas_df"]
         df_hist_resultado = df_hist_resultado[
             df_hist_resultado["resultado"].notna() & (df_hist_resultado["resultado"].str.strip() != "")
@@ -494,7 +502,7 @@ with tab_hist:
         with col3:
             st.metric("Yield (%)", f"{yield_percent:.2f}%")
 
-        # Gráfico de lucro acumulado por mês, ATP/WTA
+        # Gráfico: lucro acumulado por mês separado ATP e WTA
         df_lucro = df_hist_resultado.copy()
 
         if not df_lucro.empty:
@@ -511,8 +519,15 @@ with tab_hist:
 
             grupo = df_lucro.groupby(["ano_mes", "competicao"])["lucro"].sum().reset_index()
             tabela = grupo.pivot(index="ano_mes", columns="competicao", values="lucro").fillna(0).sort_index()
-            tabela["ATP_acum"] = tabela.get("ATP", 0).cumsum()
-            tabela["WTA_acum"] = tabela.get("WTA", 0).cumsum()
+
+            # Evita erro caso a coluna ATP ou WTA não exista
+            if "ATP" not in tabela.columns:
+                tabela["ATP"] = 0
+            if "WTA" not in tabela.columns:
+                tabela["WTA"] = 0
+
+            tabela["ATP_acum"] = tabela["ATP"].cumsum()
+            tabela["WTA_acum"] = tabela["WTA"].cumsum()
 
             fig, ax = plt.subplots(figsize=(8, 4))
             tabela[["ATP_acum", "WTA_acum"]].plot(ax=ax)
