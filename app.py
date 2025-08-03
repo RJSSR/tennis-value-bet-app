@@ -7,9 +7,8 @@ from difflib import get_close_matches
 import unicodedata
 import importlib.util
 
-# Configuração de página e CSS custom
+# ===== Configuração visual =====
 st.set_page_config(page_title="Tennis Value Bets", page_icon="🎾", layout="wide")
-
 st.markdown("""
     <style>
       .main-title {color:#176ab4; font-size:2.5em; font-weight:700; margin-bottom:0.2em;}
@@ -23,6 +22,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">🎾 Análise de Valor em Apostas de Ténis — Torneios ATP</div>', unsafe_allow_html=True)
+
+# ==== Mapeamento superfícies PT -> EN e inverso ====
+superficies_map = {"Piso Duro": "Hard", "Terra": "Clay", "Relva": "Grass"}
+superficies_map_inv = {v: k for k, v in superficies_map.items()}
 
 BASE_URL = "https://www.tennisexplorer.com"
 TORNEIOS_PERMITIDOS = [
@@ -40,13 +43,11 @@ TORNEIOS_PERMITIDOS = [
     "Umag", "United Cup", "US Open", "Vienna", "Washington", "Wimbledon", "Winston Salem", "Zhuhai"
 ]
 
-superficies_map = {"Piso Duro": "Hard", "Terra": "Clay", "Relva": "Grass"}
-# Inverse map for sidebar display:
-superficies_map_inv = {v: k for k, v in superficies_map.items()}
-
 if importlib.util.find_spec("html5lib") is None:
     st.error("Dependência obrigatória 'html5lib' ausente. Instale com:\npip install html5lib")
     st.stop()
+
+# ==== Funções de dados e utilitários ====
 
 def limpar_numero_ranking(nome):
     return re.sub(r"\s*\(\d+\)", "", nome or "").strip()
@@ -242,66 +243,60 @@ def match_nome(nome, df_col):
             return df_norm[df_norm==matches[0]].index[0]
     return None
 
-# --- === === UI e lógica === === ---
+def elo_por_superficie(df_jogador, superficie_en):
+    col_map = {"Hard": "hElo", "Clay": "cElo", "Grass": "gElo"}
+    return float(df_jogador[col_map[superficie_en]])
 
-# Obtenção dos torneios para sidebar junto com superfície
+# ========= INTERFACE ==========
+
+# Obter torneios e configurar sidebar
 torneios = obter_torneios_atp_ativos()
 if not torneios:
     st.error("Não foi possível obter torneios ATP ativos.")
     st.stop()
-
 torneio_nomes = [t['nome'] for t in torneios]
 
-# Sidebar com seleções
 with st.sidebar:
     st.header("⚙️ Definições")
     st.caption("Personalize filtros e visualização aqui.")
     st.divider()
     torneio_selec = st.selectbox("Selecionar Torneio", torneio_nomes)
-    superficie_selec = st.selectbox("Superfície", list(superficies_map_inv.keys()),
-                                    index=0)
+    superficie_pt = st.selectbox("Superfície", list(superficies_map.keys()), index=0)
     atualizar = st.button("🔄 Atualizar Dados", type="primary")
 
-# Atualizar cache se botão clicado
+superficie_en = superficies_map[superficie_pt]
+
 if atualizar:
     st.cache_data.clear()
     st.success("Dados atualizados!")
 
-# Obter url do torneio selecionado
 url_torneio_selec = next(t['url'] for t in torneios if t['nome'] == torneio_selec)
 
-# Carregar dados Elo e yElo
-with st.spinner("Carregando bases data Elo e yElo..."):
+with st.spinner("Carregando bases Elo e yElo..."):
     elo_df = cache_elo()
     yelo_df = cache_yelo()
-
 if elo_df is None or yelo_df is None or elo_df.empty or yelo_df.empty:
     st.error("Erro ao carregar bases Elo/yElo.")
     st.stop()
 
-# Carregar jogos do torneio selecionado
 with st.spinner(f"Carregando jogos do torneio {torneio_selec}..."):
     jogos = obter_jogos_do_torneio(url_torneio_selec)
 if not jogos:
     st.warning("Nenhum jogo encontrado neste torneio.")
     st.stop()
 
-# Tabs para separar análise manual e automática
+# Tabs na interface
 tab1, tab2 = st.tabs(["🔎 Análise Manual", "🤖 Análise Automática"])
 
-# --- Tab 1: Análise Manual ---
-
+# ==== TAB1: Análise Manual ====
 with tab1:
     st.header("Selecione o jogo manualmente")
-
-    # Lista de jogos para seleção + odds default (podemos usar a lista real do torneio)
     jogo_selecionado_label = st.selectbox("Jogo:", [j['label'] for j in jogos])
     selecionado = next(j for j in jogos if j['label'] == jogo_selecionado_label)
 
     odd_a_input = st.number_input(f"Odd para {selecionado['jogador_a']}", value=selecionado['odd_a'] or 1.80, step=0.01)
     odd_b_input = st.number_input(f"Odd para {selecionado['jogador_b']}", value=selecionado['odd_b'] or 2.00, step=0.01)
 
-    # Encontrar índices e dados elo/yelo
     idx_a = match_nome(selecionado['jogador_a'], elo_df['Player'])
     idx_b = match_nome(selecionado['jogador_b'], elo_df['Player'])
     if idx_a is None:
@@ -310,24 +305,21 @@ with tab1:
     if idx_b is None:
         st.error(f"Não encontrei Elo para: {selecionado['jogador_b']}")
         st.stop()
-
     dados_a = elo_df.loc[idx_a]
     dados_b = elo_df.loc[idx_b]
-
     yelo_a = encontrar_yelo(selecionado['jogador_a'], yelo_df)
     yelo_b = encontrar_yelo(selecionado['jogador_b'], yelo_df)
     if yelo_a is None or yelo_b is None:
         st.error("Não consegui encontrar yElo para um dos jogadores.")
         st.stop()
-
     try:
         geral_a = float(dados_a['Elo'])
-        esp_a = float(dados_a[{ "Hard":"hElo", "Clay":"cElo", "Grass":"gElo" }[superficies_map_inv[superficie_selec]]])
+        esp_a = elo_por_superficie(dados_a, superficie_en)
         yelo_a_f = float(yelo_a)
         elo_final_a = (esp_a / geral_a) * yelo_a_f
 
         geral_b = float(dados_b['Elo'])
-        esp_b = float(dados_b[{ "Hard":"hElo", "Clay":"cElo", "Grass":"gElo" }[superficies_map_inv[superficie_selec]]])
+        esp_b = elo_por_superficie(dados_b, superficie_en)
         yelo_b_f = float(yelo_b)
         elo_final_b = (esp_b / geral_b) * yelo_b_f
     except:
@@ -399,12 +391,9 @@ with tab1:
 
     st.markdown('<div class="custom-sep"></div>', unsafe_allow_html=True)
 
-# --- Tab 2: Análise Automática ---
-
+# ==== TAB2: Análise automática ====
 with tab2:
     st.header("Jogos com valor positivo")
-
-    # Recalcula valor para todos jogos no torneio  
     resultados = []
     for jogo in jogos:
         jogador_a = jogo["jogador_a"]
@@ -425,10 +414,10 @@ with tab2:
 
         try:
             eGA = float(dA["Elo"])
-            eSA = float(dA[{"Hard":"hElo","Clay":"cElo","Grass":"gElo"}[superficies_map_inv[superficie_selec]]])
+            eSA = elo_por_superficie(dA, superficie_en)
             yFA = float(yA)
             eGB = float(dB["Elo"])
-            eSB = float(dB[{"Hard":"hElo","Clay":"cElo","Grass":"gElo"}[superficies_map_inv[superficie_selec]]])
+            eSB = elo_por_superficie(dB, superficie_en)
             yFB = float(yB)
         except:
             continue
@@ -506,4 +495,3 @@ with tab2:
 
 st.divider()
 st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
-
