@@ -448,14 +448,14 @@ with tab_manual:
 
     if st.button("Registrar esta aposta"):
         nova_aposta = {
-            "data": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "evento": selecionado["label"],
-            "aposta": jogador_apostar,
-            "odd": odd_usar,
-            "valor_apostado": stake_usar,
-            "stake": stake_usar,
-            "resultado": "",
-            "competicao": tipo_competicao,
+            "Data": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "Evento": selecionado["label"],
+            "Aposta": jogador_apostar,
+            "Odd": odd_usar,
+            "Valor Apostado": stake_usar,
+            "Stake": stake_usar,
+            "Resultado": "",
+            "Competição": tipo_competicao,
         }
         novo_df = pd.DataFrame([nova_aposta])
         st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], novo_df], ignore_index=True)
@@ -561,14 +561,14 @@ with tab_auto:
                 if float(row["Stake A (€)"]) > 0:
                     if st.button(f"Registrar aposta A em {row['Jogo']}", key=f"reg_auto_a_{idx}"):
                         nova_aposta = {
-                            "data": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "evento": row["Jogo"],
-                            "aposta": row["Jogador A"],
-                            "odd": row["Odd A raw"],
-                            "valor_apostado": row["Stake A raw"],
-                            "stake": row["Stake A raw"],
-                            "resultado": "",
-                            "competicao": tipo_competicao,
+                            "Data": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "Evento": row["Jogo"],
+                            "Aposta": row["Jogador A"],
+                            "Odd": row["Odd A raw"],
+                            "Valor Apostado": row["Stake A raw"],
+                            "Stake": row["Stake A raw"],
+                            "Resultado": "",
+                            "Competição": tipo_competicao,
                         }
                         novo_df = pd.DataFrame([nova_aposta])
                         st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], novo_df], ignore_index=True)
@@ -578,14 +578,14 @@ with tab_auto:
                 if float(row["Stake B (€)"]) > 0:
                     if st.button(f"Registrar aposta B em {row['Jogo']}", key=f"reg_auto_b_{idx}"):
                         nova_aposta = {
-                            "data": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "evento": row["Jogo"],
-                            "aposta": row["Jogador B"],
-                            "odd": row["Odd B raw"],
-                            "valor_apostado": row["Stake B raw"],
-                            "stake": row["Stake B raw"],
-                            "resultado": "",
-                            "competicao": tipo_competicao,
+                            "Data": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "Evento": row["Jogo"],
+                            "Aposta": row["Jogador B"],
+                            "Odd": row["Odd B raw"],
+                            "Valor Apostado": row["Stake B raw"],
+                            "Stake": row["Stake B raw"],
+                            "Resultado": "",
+                            "Competição": tipo_competicao,
                         }
                         novo_df = pd.DataFrame([nova_aposta])
                         st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], novo_df], ignore_index=True)
@@ -605,11 +605,11 @@ with tab_hist:
         # Reorganiza as colunas para melhor visualização
         cols = df_hist.columns.tolist()
         # Remove colunas que não quer mostrar
-        for c in ["valor_apostado", "competicao", "data"]:
+        for c in ["Valor Apostado", "Competição", "data"]:
             if c in cols:
                 cols.remove(c)
 
-        nova_ordem = ["data", "competicao"] + cols
+        nova_ordem = ["Data", "Competição"] + cols
         nova_ordem = [c for c in nova_ordem if c in df_hist.columns]
         df_hist = df_hist[nova_ordem].copy()
 
@@ -673,10 +673,10 @@ with tab_hist:
         def remove_aposta_callback(data):
             df = st.session_state["historico_apostas_df"]
             condition = (
-                (df["data"] == data["data"]) &
-                (df["evento"] == data["evento"]) &
-                (df["aposta"] == data["aposta"]) &
-                (abs(df["odd"] - float(data["odd"])) < 1e-9)
+                (df["Data"] == data["Data"]) &
+                (df["Evento"] == data["Evento"]) &
+                (df["Aposta"] == data["Aposta"]) &
+                (abs(df["Odd"] - float(data["Odd"])) < 1e-9)
             )
             indices = df[condition].index
             if not indices.empty:
@@ -700,8 +700,8 @@ with tab_hist:
             context=context,
         )
 
-        if response["data"] is not None:
-            df_updated = pd.DataFrame(response["data"])
+        if response["Data"] is not None:
+            df_updated = pd.DataFrame(response["Data"])
 
             if "remove" in df_updated.columns:
                 df_updated = df_updated.drop(columns=["remove"])
@@ -717,13 +717,13 @@ with tab_hist:
             df_hist_resultado["resultado"].notna() & (df_hist_resultado["resultado"].str.strip() != "")
         ]
 
-        df_hist_resultado["stake"] = pd.to_numeric(df_hist_resultado["stake"], errors="coerce").fillna(0)
-        df_hist_resultado["odd"] = pd.to_numeric(df_hist_resultado["odd"], errors="coerce").fillna(0)
+        df_hist_resultado["Stake"] = pd.to_numeric(df_hist_resultado["stake"], errors="coerce").fillna(0)
+        df_hist_resultado["Odd"] = pd.to_numeric(df_hist_resultado["odd"], errors="coerce").fillna(0)
 
         num_apostas = len(df_hist_resultado)
         apostas_ganhas = (df_hist_resultado["resultado"] == "ganhou").sum()
         apostas_perdidas = (df_hist_resultado["resultado"] == "perdeu").sum()
-        montante_investido = df_hist_resultado["stake"].sum()
+        montante_investido = df_hist_resultado["Stake"].sum()
         montante_ganho = df_hist_resultado.apply(calcular_retorno, axis=1).sum()
         yield_percent = ((montante_ganho - montante_investido) / montante_investido * 100) if montante_investido > 0 else 0.0
 
@@ -734,7 +734,7 @@ with tab_hist:
             st.metric("Apostas Perdidas", apostas_perdidas)
         with col2:
             st.metric("Montante Investido (€)", f"€{montante_investido:.2f}")
-            st.metric("Montante Ganhou (€)", f"€{montante_ganho:.2f}")
+            st.metric("Montante Ganho (€)", f"€{montante_ganho:.2f}")
         with col3:
             st.metric("Yield (%)", f"{yield_percent:.2f}%")
 
