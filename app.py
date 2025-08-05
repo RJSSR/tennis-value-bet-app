@@ -8,7 +8,7 @@ import unicodedata
 import os
 from io import StringIO
 import matplotlib.pyplot as plt
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 
 # ===== Parâmetros globais =====
 TOLERANCIA = 1e-6
@@ -600,7 +600,7 @@ with tab_hist:
     if df_hist.empty:
         st.info("Nenhuma aposta registrada.")
     else:
-        # Reorganiza e define colunas para exibir, removendo algumas colunas se quiser
+        # Reorganiza e define colunas para exibir
         cols = df_hist.columns.tolist()
         for c in ["valor_apostado"]:
             if c in cols:
@@ -620,8 +620,6 @@ with tab_hist:
         gb.configure_column("aposta", header_name="Aposta")
         gb.configure_column("odd", header_name="Odd")
         gb.configure_column("stake", header_name="Stake")
-
-        # Configura coluna "resultado" para ser editável com dropdown de seleção
         gb.configure_column(
             "resultado",
             editable=True,
@@ -631,64 +629,9 @@ with tab_hist:
             header_name="Resultado",
         )
 
-        # Botão para remover aposta
-        button_renderer = JsCode("""
-        class BtnRemoveRenderer {
-            init(params) {
-                this.params = params;
-                this.eButton = document.createElement('button');
-                this.eButton.innerHTML = '❌';
-                this.eButton.style.backgroundColor = '#ff4b4b';
-                this.eButton.style.color = 'white';
-                this.eButton.style.border = 'none';
-                this.eButton.style.borderRadius = '4px';
-                this.eButton.style.cursor = 'pointer';
-                this.eButton.onclick = () => {
-                    if (confirm('Deseja remover esta aposta?')) {
-                        params.api.applyTransaction({remove: [params.node.data]});
-                        if (params.context && params.context.remove_callback) {
-                            params.context.remove_callback(params.node.data);
-                        }
-                    }
-                };
-            }
-            getGui() {
-                return this.eButton;
-            }
-        }
-        """)
-
-        if "remove" not in df_hist.columns:
-            df_hist["remove"] = ""
-
-        gb.configure_column(
-            "remove",
-            header_name="Remover",
-            cellRenderer=button_renderer,
-            maxWidth=100,
-            suppressMenu=True,
-            editable=False,
-            filter=False,
-            sortable=False,
-        )
-
+        # Permite seleção de linhas
+        gb.configure_selection(selection_mode="multiple", use_checkbox=True)
         grid_options = gb.build()
-
-        def remove_aposta_callback(data):
-            df = st.session_state["historico_apostas_df"]
-            condition = (
-                (df["data"] == data["data"]) &
-                (df["evento"] == data["evento"]) &
-                (df["aposta"] == data["aposta"]) &
-                (abs(df["odd"] - float(data["odd"])) < 1e-9)
-            )
-            indices = df[condition].index
-            if not indices.empty:
-                st.session_state["historico_apostas_df"] = df.drop(indices).reset_index(drop=True)
-                salvar_historico(st.session_state["historico_apostas_df"])
-                st.rerun()
-
-        context = {"remove_callback": remove_aposta_callback}
 
         response = AgGrid(
             df_hist,
@@ -700,21 +643,37 @@ with tab_hist:
             height=400,
             fit_columns_on_grid_load=True,
             reload_data=True,
-            theme="fresh",
-            context=context,
+            theme="fresh"
         )
 
+        # Remoção de apostas selecionadas
+        selected = response["selected_rows"]
+        if selected and st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
+            df = st.session_state["historico_apostas_df"]
+            for data in selected:
+                # Encontra índices que correspondem à aposta
+                condition = (
+                    (df["data"] == data["data"]) &
+                    (df["evento"] == data["evento"]) &
+                    (df["aposta"] == data["aposta"]) &
+                    (abs(df["odd"] - float(data["odd"])) < 1e-9)
+                )
+                indices = df[condition].index
+                if not indices.empty:
+                    df = df.drop(indices)
+            # Commit alterações
+            st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
+            salvar_historico(st.session_state["historico_apostas_df"])
+            st.success("Aposta(s) removida(s) com sucesso.")
+            st.experimental_rerun()
+
+        # Atualiza histórico se houver edições no grid
         if response["data"] is not None:
             df_updated = pd.DataFrame(response["data"])
-
-            if "remove" in df_updated.columns:
-                df_updated = df_updated.drop(columns=["remove"])
-
             if not df_updated.equals(st.session_state["historico_apostas_df"].astype(str)):
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(st.session_state["historico_apostas_df"])
 
-        # Somente apostas com resultado preenchido
         df_hist_resultado = st.session_state["historico_apostas_df"]
         df_hist_resultado = df_hist_resultado[
             df_hist_resultado["resultado"].notna() & (df_hist_resultado["resultado"].str.strip() != "")
@@ -759,7 +718,6 @@ with tab_hist:
             grupo = df_lucro.groupby(["ano_mes", "competicao"])["lucro"].sum().reset_index()
             tabela = grupo.pivot(index="ano_mes", columns="competicao", values="lucro").fillna(0).sort_index()
 
-            # Evita erro caso a coluna ATP ou WTA não exista
             if "ATP" not in tabela.columns:
                 tabela["ATP"] = 0
             if "WTA" not in tabela.columns:
