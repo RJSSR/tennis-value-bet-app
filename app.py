@@ -602,8 +602,6 @@ with tab_auto:
                         st.success(f"Aposta {nova_aposta['aposta']} registrada automaticamente (Jogador B)")
 
 
-
-
 def salvar_historico(df):
     st.session_state["historico_apostas_df"] = df
 
@@ -643,8 +641,15 @@ else:
         theme="fresh",
     )
 
-    # Garante que selected nunca é None
-    selected = getattr(response, "selected_rows", []) or []
+    # Garante que selected é sempre lista, convertendo se for DataFrame
+    selected_raw = getattr(response, "selected_rows", None)
+    if selected_raw is None:
+        selected = []
+    elif hasattr(selected_raw, "to_dict"):
+        selected = selected_raw.to_dict(orient="records")
+    else:
+        selected = selected_raw
+
     st.write(f"Apostas selecionadas: {len(selected)}")
 
     if st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
@@ -759,3 +764,4 @@ else:
 
     st.divider()
     st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
+
