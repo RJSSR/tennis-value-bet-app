@@ -661,7 +661,8 @@ with tab_hist:
 if "historico_apostas_df" not in st.session_state:
     st.session_state["historico_apostas_df"] = pd.DataFrame()
 
-selected = response.get("selected_rows", [])
+# Protege o acesso ao response
+selected = response.get("selected_rows", []) if isinstance(response, dict) else []
 
 # Remoção de apostas selecionadas
 if len(selected) > 0 and st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
@@ -693,7 +694,7 @@ if len(selected) > 0 and st.button("❌ Remover aposta(s) selecionada(s)", type=
     st.rerun()
 
 # Atualização do histórico, se necessário
-if response.get("data") is not None:
+if isinstance(response, dict) and response.get("data") is not None:
     df_updated = pd.DataFrame(response["data"])
 
     if "remove" in df_updated.columns:
