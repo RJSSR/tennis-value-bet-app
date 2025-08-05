@@ -602,10 +602,10 @@ with tab_auto:
                         st.success(f"Aposta {nova_aposta['aposta']} registrada automaticamente (Jogador B)")
 
 
-# --- Função auxiliar ---
+
+# --- Função auxiliar para salvar o histórico ---
 def salvar_historico(df):
     st.session_state["historico_apostas_df"] = df
-    # Aqui podias também guardar em ficheiro: df.to_csv(...)
 
 # --- ABA HISTÓRICO ---
 with tab_hist:
@@ -648,13 +648,13 @@ with tab_hist:
         gb.configure_selection(selection_mode="multiple", use_checkbox=True)
         grid_options = gb.build()
 
-        # Mostrar a grelha
+        # Mostra o AgGrid com update_mode corrigido
         response = AgGrid(
             df_hist,
             gridOptions=grid_options,
             allow_unsafe_jscode=True,
             enable_enterprise_modules=False,
-            update_mode=GridUpdateMode.MODEL_CHANGED,
+            update_mode=GridUpdateMode.MODEL_CHANGED | GridUpdateMode.SELECTION_CHANGED,
             data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
             height=400,
             fit_columns_on_grid_load=True,
@@ -662,9 +662,10 @@ with tab_hist:
             theme="fresh",
         )
 
-        # Obter linhas selecionadas com segurança
+        # Obter linhas selecionadas
         selected = response.get("selected_rows", []) if isinstance(response, dict) else []
         st.write(f"Apostas selecionadas: {len(selected)}")
+        # st.write("DEBUG selected_rows:", selected)  # opcional
 
         # Botão para remover apostas selecionadas
         if st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
@@ -694,15 +695,13 @@ with tab_hist:
                 st.success("Aposta(s) removida(s) com sucesso.")
                 st.rerun()
 
-        # Atualizar o histórico se o utilizador editou o campo "resultado"
+        # Atualizar resultado editado no grid
         if response.get("data") is not None:
             df_updated = pd.DataFrame(response["data"])
             if "remove" in df_updated.columns:
                 df_updated = df_updated.drop(columns=["remove"])
-
             df_hist_str = st.session_state["historico_apostas_df"].astype(str)
             df_updated_str = df_updated.astype(str)
-
             if not df_updated_str.equals(df_hist_str):
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(df_updated)
