@@ -276,7 +276,11 @@ def elo_por_superficie(df_jogador, superficie_en):
 def carregar_historico():
     if os.path.exists(HISTORICO_CSV):
         try:
-            return pd.read_csv(HISTORICO_CSV)
+            df = pd.read_csv(HISTORICO_CSV)
+            # Garante que a coluna data é string (por segurança)
+            if "data" in df.columns:
+                df["data"] = df["data"].astype(str)
+            return df
         except:
             return pd.DataFrame()
     return pd.DataFrame()
@@ -651,9 +655,8 @@ with tab_hist:
         if len(selected) > 0 and st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
             df = st.session_state["historico_apostas_df"]
             for data in selected:
-                # Encontra índices que correspondem à aposta
                 condition = (
-                    (df["data"] == data["data"]) &
+                    (df["data"].astype(str) == str(data["data"])) &
                     (df["evento"] == data["evento"]) &
                     (df["aposta"] == data["aposta"]) &
                     (abs(df["odd"] - float(data["odd"])) < 1e-9)
@@ -661,7 +664,6 @@ with tab_hist:
                 indices = df[condition].index
                 if not indices.empty:
                     df = df.drop(indices)
-            # Commit alterações
             st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
             salvar_historico(st.session_state["historico_apostas_df"])
             st.success("Aposta(s) removida(s) com sucesso.")
