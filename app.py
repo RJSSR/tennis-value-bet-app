@@ -678,7 +678,7 @@ else:
             st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
             salvar_historico(st.session_state["historico_apostas_df"])
             st.success("Aposta(s) removida(s) com sucesso.")
-            st.experimental_rerun()
+            st.rerun()
 
     # Atualiza histórico caso tenha sido editado direto no grid
     if hasattr(response, "data") and response.data is not None:
