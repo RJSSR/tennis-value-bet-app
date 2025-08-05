@@ -94,15 +94,22 @@ def obter_torneios(tipo="ATP"):
         torneios = []
         permitidos = TORNEIOS_ATP_PERMITIDOS if tipo == "ATP" else TORNEIOS_WTA_PERMITIDOS
         nomes_permitidos = [t.casefold() for t in permitidos]
-        seletor = "a[href*='/atp-men/']" if tipo == "ATP" else "a[href*='/wta-women/']"
-        for a in soup.select(seletor):
+
+        # Busca flexível por href com '/atp' ou '/wta'
+        for a in soup.find_all("a", href=True):
             nome = a.text.strip()
-            href = a.get("href", "")
-            if not href:
-                continue
-            url_full = BASE_URL + href if href.startswith("/") else href
-            if nome.casefold() in nomes_permitidos and url_full not in {t["url"] for t in torneios}:
-                torneios.append({"nome": nome, "url": url_full})
+            href = a["href"]
+
+            if tipo == "ATP" and ("/atp" in href or "/atp-men" in href):
+                if nome.casefold() in nomes_permitidos:
+                    url_full = BASE_URL + href if href.startswith("/") else href
+                    if url_full not in {t["url"] for t in torneios}:
+                        torneios.append({"nome": nome, "url": url_full})
+            elif tipo == "WTA" and ("/wta" in href or "/wta-women" in href):
+                if nome.casefold() in nomes_permitidos:
+                    url_full = BASE_URL + href if href.startswith("/") else href
+                    if url_full not in {t["url"] for t in torneios}:
+                        torneios.append({"nome": nome, "url": url_full})
         return torneios
     except Exception as e:
         st.error(f"Erro ao obter torneios {tipo}: {e}")
@@ -276,7 +283,10 @@ def elo_por_superficie(df_jogador, superficie_en):
 def carregar_historico():
     if os.path.exists(HISTORICO_CSV):
         try:
-            return pd.read_csv(HISTORICO_CSV)
+            df = pd.read_csv(HISTORICO_CSV)
+            if "data" in df.columns:
+                df["data"] = df["data"].astype(str)
+            return df
         except:
             return pd.DataFrame()
     return pd.DataFrame()
@@ -357,7 +367,7 @@ tab_manual, tab_auto, tab_hist = st.tabs([
     "Histórico"
 ])
 
-# --- Aba Manual ---
+# --- ABA MANUAL ---
 with tab_manual:
     st.header(f"Análise Manual de Jogos {tipo_competicao}")
     
@@ -461,7 +471,7 @@ with tab_manual:
         salvar_historico(st.session_state["historico_apostas_df"])
         st.success(f"Aposta registrada para {jogador_apostar} com odd {odd_usar} e stake €{stake_usar:.2f}")
 
-# --- Aba Automática ---
+# --- ABA AUTOMÁTICA ---
 with tab_auto:
     st.header(f"Análise Automática de Jogos {tipo_competicao} — Valor Positivo")
     resultados = []
@@ -591,7 +601,7 @@ with tab_auto:
                         salvar_historico(st.session_state["historico_apostas_df"])
                         st.success(f"Aposta {nova_aposta['aposta']} registrada automaticamente (Jogador B)")
 
-# --- Aba Histórico ---
+# --- ABA HISTÓRICO ---
 with tab_hist:
     st.header("📊 Histórico de Apostas e Retorno")
 
@@ -600,7 +610,6 @@ with tab_hist:
     if df_hist.empty:
         st.info("Nenhuma aposta registrada.")
     else:
-        # Reorganiza e define colunas para exibir, removendo algumas colunas se quiser
         cols = df_hist.columns.tolist()
         for c in ["valor_apostado"]:
             if c in cols:
@@ -613,7 +622,6 @@ with tab_hist:
 
         gb = GridOptionsBuilder.from_dataframe(df_hist)
 
-        # Configura renomeação dos cabeçalhos em português  
         gb.configure_column("data", header_name="Data")
         gb.configure_column("competicao", header_name="Competição")
         gb.configure_column("evento", header_name="Evento")
@@ -621,7 +629,6 @@ with tab_hist:
         gb.configure_column("odd", header_name="Odd")
         gb.configure_column("stake", header_name="Stake")
 
-        # Configura coluna "resultado" para ser editável com dropdown de seleção
         gb.configure_column(
             "resultado",
             editable=True,
@@ -631,64 +638,9 @@ with tab_hist:
             header_name="Resultado",
         )
 
-        # Botão para remover aposta
-        button_renderer = JsCode("""
-        class BtnRemoveRenderer {
-            init(params) {
-                this.params = params;
-                this.eButton = document.createElement('button');
-                this.eButton.innerHTML = '❌';
-                this.eButton.style.backgroundColor = '#ff4b4b';
-                this.eButton.style.color = 'white';
-                this.eButton.style.border = 'none';
-                this.eButton.style.borderRadius = '4px';
-                this.eButton.style.cursor = 'pointer';
-                this.eButton.onclick = () => {
-                    if (confirm('Deseja remover esta aposta?')) {
-                        params.api.applyTransaction({remove: [params.node.data]});
-                        if (params.context && params.context.remove_callback) {
-                            params.context.remove_callback(params.node.data);
-                        }
-                    }
-                };
-            }
-            getGui() {
-                return this.eButton;
-            }
-        }
-        """)
-
-        if "remove" not in df_hist.columns:
-            df_hist["remove"] = ""
-
-        gb.configure_column(
-            "remove",
-            header_name="Remover",
-            cellRenderer=button_renderer,
-            maxWidth=100,
-            suppressMenu=True,
-            editable=False,
-            filter=False,
-            sortable=False,
-        )
-
+        # Permite seleção múltipla com checkboxes
+        gb.configure_selection(selection_mode="multiple", use_checkbox=True)
         grid_options = gb.build()
-
-        def remove_aposta_callback(data):
-            df = st.session_state["historico_apostas_df"]
-            condition = (
-                (df["data"] == data["data"]) &
-                (df["evento"] == data["evento"]) &
-                (df["aposta"] == data["aposta"]) &
-                (abs(df["odd"] - float(data["odd"])) < 1e-9)
-            )
-            indices = df[condition].index
-            if not indices.empty:
-                st.session_state["historico_apostas_df"] = df.drop(indices).reset_index(drop=True)
-                salvar_historico(st.session_state["historico_apostas_df"])
-                st.rerun()
-
-        context = {"remove_callback": remove_aposta_callback}
 
         response = AgGrid(
             df_hist,
@@ -701,20 +653,39 @@ with tab_hist:
             fit_columns_on_grid_load=True,
             reload_data=True,
             theme="fresh",
-            context=context,
         )
+
+        selected = response.get("selected_rows", [])
+        if len(selected) > 0 and st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
+            df = st.session_state["historico_apostas_df"].reset_index(drop=True)
+            for data in selected:
+                row_data = str(data.get("data", "")).strip()
+                cond = (df["data"].astype(str).str.strip() == row_data)
+                cond &= (df["evento"] == data.get("evento", ""))
+                cond &= (df["aposta"] == data.get("aposta", ""))
+                try:
+                    data_odd = float(data.get("odd", 0))
+                    cond &= (abs(df["odd"].astype(float) - data_odd) < 1e-9)
+                except Exception:
+                    cond &= False
+
+                indices = df[cond].index
+                if not indices.empty:
+                    df = df.drop(indices)
+            st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
+            salvar_historico(st.session_state["historico_apostas_df"])
+            st.success("Aposta(s) removida(s) com sucesso.")
+            st.experimental_rerun()
 
         if response["data"] is not None:
             df_updated = pd.DataFrame(response["data"])
-
+            # Remove coluna remove, se existir
             if "remove" in df_updated.columns:
                 df_updated = df_updated.drop(columns=["remove"])
-
             if not df_updated.equals(st.session_state["historico_apostas_df"].astype(str)):
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(st.session_state["historico_apostas_df"])
 
-        # Somente apostas com resultado preenchido
         df_hist_resultado = st.session_state["historico_apostas_df"]
         df_hist_resultado = df_hist_resultado[
             df_hist_resultado["resultado"].notna() & (df_hist_resultado["resultado"].str.strip() != "")
@@ -741,9 +712,7 @@ with tab_hist:
         with col3:
             st.metric("Yield (%)", f"{yield_percent:.2f}%")
 
-        # Gráfico: lucro acumulado por mês separado ATP e WTA
         df_lucro = df_hist_resultado.copy()
-
         if not df_lucro.empty:
             def calc_lucro(row):
                 if row["resultado"] == "ganhou":
@@ -759,7 +728,6 @@ with tab_hist:
             grupo = df_lucro.groupby(["ano_mes", "competicao"])["lucro"].sum().reset_index()
             tabela = grupo.pivot(index="ano_mes", columns="competicao", values="lucro").fillna(0).sort_index()
 
-            # Evita erro caso a coluna ATP ou WTA não exista
             if "ATP" not in tabela.columns:
                 tabela["ATP"] = 0
             if "WTA" not in tabela.columns:
