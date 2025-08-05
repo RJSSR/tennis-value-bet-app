@@ -603,72 +603,25 @@ with tab_auto:
 
 
 
-def salvar_historico(df):
-    st.session_state["historico_apostas_df"] = df
 
-# Inicialização do histórico
-if "historico_apostas_df" not in st.session_state:
-    st.session_state["historico_apostas_df"] = pd.DataFrame({
-        "data": ["2025-08-01", "2025-08-02"],
-        "competicao": ["ATP", "WTA"],
-        "evento": ["Evento A", "Evento B"],
-        "aposta": ["Aposta 1", "Aposta 2"],
-        "odd": [1.5, 2.0],
-        "stake": [10, 20],
-        "resultado": ["ganhou", "perdeu"],
-    })
 
-df_hist = st.session_state["historico_apostas_df"].copy()
-df_hist = df_hist.fillna("").reset_index(drop=True)
+response = AgGrid(
+    df_hist,
+    gridOptions=grid_options,
+    update_mode=GridUpdateMode.MODEL_CHANGED | GridUpdateMode.SELECTION_CHANGED,
+    data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+    fit_columns_on_grid_load=True,
+    height=400,
+    theme="fresh",
+)
 
-st.header("📊 Histórico de Apostas")
-
-if df_hist.empty:
-    st.info("Nenhuma aposta registrada.")
+# DEBUG: mostrar tipo e chaves principais do response
+if isinstance(response, dict):
+    st.write("Response keys and their types:")
+    for key, value in response.items():
+        st.write(f"{key}: {type(value)}")
+    
+    st.write("Selected rows:")
+    st.write(response.get("selected_rows", []))
 else:
-    resultados_validos = ["", "ganhou", "perdeu", "cashout"]
-    gb = GridOptionsBuilder.from_dataframe(df_hist)
-    gb.configure_column("resultado", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": resultados_validos})
-    gb.configure_selection(selection_mode="multiple", use_checkbox=True, groupSelectsChildren=True)
-    grid_options = gb.build()
-
-    response = AgGrid(
-        df_hist,
-        gridOptions=grid_options,
-        update_mode=GridUpdateMode.MODEL_CHANGED | GridUpdateMode.SELECTION_CHANGED,
-        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-        fit_columns_on_grid_load=True,
-        height=400,
-        theme="fresh",
-    )
-
-    # Debug: mostra todo o response para confirmar estrutura
-    st.json(response)
-
-    selected = []
-    if isinstance(response, dict):
-        selected = response.get("selected_rows", [])
-    st.write(f"Apostas selecionadas: {len(selected)}")
-
-    if st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
-        if len(selected) == 0:
-            st.warning("Nenhuma aposta foi selecionada.")
-        else:
-            df = st.session_state["historico_apostas_df"].copy().reset_index(drop=True)
-            for data in selected:
-                cond = (df["data"].astype(str).str.strip() == str(data.get("data", "")).strip())
-                cond &= (df["evento"] == data.get("evento", ""))
-                cond &= (df["aposta"] == data.get("aposta", ""))
-                try:
-                    data_odd = float(data.get("odd", 0))
-                    cond &= (abs(df["odd"].astype(float) - data_odd) < 1e-9)
-                except Exception:
-                    cond &= False
-                indices = df[cond].index
-                if not indices.empty:
-                    df = df.drop(indices)
-
-            st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
-            salvar_historico(st.session_state["historico_apostas_df"])
-            st.success("Aposta(s) removida(s) com sucesso.")
-            st.rerun()
+    st.write("Response não é dict. Tipo:", type(response))
