@@ -664,21 +664,6 @@ if "historico_apostas_df" not in st.session_state:
 # Protege o acesso ao response
 selected = response.get("selected_rows", []) if isinstance(response, dict) else []
 
-# Após criares o AgGrid no teu código (por exemplo, dentro da aba Histórico):
-
-response = AgGrid(
-    df_hist,
-    gridOptions=grid_options,
-    allow_unsafe_jscode=True,
-    enable_enterprise_modules=False,
-    update_mode=GridUpdateMode.MODEL_CHANGED,
-    data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-    height=400,
-    fit_columns_on_grid_load=True,
-    reload_data=True,
-    theme="fresh"
-)
-
 # Captura as linhas selecionadas sempre após o AgGrid
 selected = response.get("selected_rows", [])
 
