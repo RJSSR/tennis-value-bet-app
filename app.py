@@ -608,76 +608,46 @@ def salvar_historico(df):
     st.session_state["historico_apostas_df"] = df
 
 # --- ABA HISTÓRICO ---
-with tab_hist:
+with st.container():
     st.header("📊 Histórico de Apostas e Retorno")
 
-    # Inicializar histórico se ainda não existir
     if "historico_apostas_df" not in st.session_state:
         st.session_state["historico_apostas_df"] = pd.DataFrame()
 
     df_hist = st.session_state["historico_apostas_df"].copy()
+    df_hist = df_hist.fillna("").reset_index(drop=True)
 
     if df_hist.empty:
         st.info("Nenhuma aposta registrada.")
     else:
-        # Organização de colunas
-        cols = df_hist.columns.tolist()
-        for c in ["valor_apostado"]:
-            if c in cols:
-                cols.remove(c)
-        nova_ordem = ["data", "competicao"] + [c for c in cols if c not in ["data", "competicao"]]
-        df_hist = df_hist[nova_ordem].copy()
-
         resultados_validos = ["", "ganhou", "perdeu", "cashout"]
-
         gb = GridOptionsBuilder.from_dataframe(df_hist)
-        gb.configure_column("data", header_name="Data")
-        gb.configure_column("competicao", header_name="Competição")
-        gb.configure_column("evento", header_name="Evento")
-        gb.configure_column("aposta", header_name="Aposta")
-        gb.configure_column("odd", header_name="Odd")
-        gb.configure_column("stake", header_name="Stake")
-        gb.configure_column(
-            "resultado",
-            editable=True,
-            cellEditor="agSelectCellEditor",
-            cellEditorParams={"values": resultados_validos},
-            cellEditorPopup=True,
-            header_name="Resultado",
-        )
+        gb.configure_column("resultado", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": resultados_validos})
         gb.configure_selection(selection_mode="multiple", use_checkbox=True)
         grid_options = gb.build()
 
-        # Mostra o AgGrid com update_mode corrigido
         response = AgGrid(
             df_hist,
             gridOptions=grid_options,
-            allow_unsafe_jscode=True,
-            enable_enterprise_modules=False,
             update_mode=GridUpdateMode.MODEL_CHANGED | GridUpdateMode.SELECTION_CHANGED,
             data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-            height=400,
             fit_columns_on_grid_load=True,
-            reload_data=True,
+            height=400,
             theme="fresh",
         )
 
-        # Obter linhas selecionadas
-        selected = response.get("selected_rows", []) if isinstance(response, dict) else []
+        selected = response.get("selected_rows", [])
         st.write(f"Apostas selecionadas: {len(selected)}")
-        # st.write("DEBUG selected_rows:", selected)  # opcional
 
-        # Botão para remover apostas selecionadas
         if st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
             if len(selected) == 0:
                 st.warning("Nenhuma aposta foi selecionada.")
             else:
-                df = st.session_state["historico_apostas_df"].reset_index(drop=True)
+                df = st.session_state["historico_apostas_df"].copy().reset_index(drop=True)
                 for data in selected:
                     if not isinstance(data, dict):
                         continue
-                    row_data = str(data.get("data", "")).strip()
-                    cond = (df["data"].astype(str).str.strip() == row_data)
+                    cond = (df["data"].astype(str).str.strip() == str(data.get("data", "")).strip())
                     cond &= (df["evento"] == data.get("evento", ""))
                     cond &= (df["aposta"] == data.get("aposta", ""))
                     try:
@@ -685,7 +655,6 @@ with tab_hist:
                         cond &= (abs(df["odd"].astype(float) - data_odd) < 1e-9)
                     except Exception:
                         cond &= False
-
                     indices = df[cond].index
                     if not indices.empty:
                         df = df.drop(indices)
@@ -695,7 +664,6 @@ with tab_hist:
                 st.success("Aposta(s) removida(s) com sucesso.")
                 st.rerun()
 
-        # Atualizar resultado editado no grid
         if response.get("data") is not None:
             df_updated = pd.DataFrame(response["data"])
             if "remove" in df_updated.columns:
@@ -706,7 +674,7 @@ with tab_hist:
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(df_updated)
 
-        # --- MÉTRICAS E ANÁLISE ---
+        # --- Métricas e Análise ---
         df_hist_resultado = st.session_state["historico_apostas_df"]
         df_hist_resultado = df_hist_resultado[
             df_hist_resultado["resultado"].notna() & (df_hist_resultado["resultado"].str.strip() != "")
@@ -741,7 +709,6 @@ with tab_hist:
         with col3:
             st.metric("Yield (%)", f"{yield_percent:.2f}%")
 
-        # Gráfico de lucro acumulado por mês
         df_lucro = df_hist_resultado.copy()
         if not df_lucro.empty:
             def calc_lucro(row):
