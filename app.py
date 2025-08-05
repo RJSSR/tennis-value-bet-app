@@ -665,7 +665,7 @@ if "historico_apostas_df" not in st.session_state:
 selected = response.get("selected_rows", []) if isinstance(response, dict) else []
 
 # Captura as linhas selecionadas sempre após o AgGrid
-selected = response.get("selected_rows", [])
+selected = response.get("selected_rows", []) if response else []
 
 # Mostra na interface quantas apostas estão selecionadas (útil para debug)
 st.write(f"Apostas selecionadas: {len(selected)}")
