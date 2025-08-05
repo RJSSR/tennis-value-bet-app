@@ -651,93 +651,93 @@ with tab_hist:
         )
 
         # Remoção de apostas selecionadas
-        selected = response["selected_rows"]
-        if len(selected) > 0 and st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
-            df = st.session_state["historico_apostas_df"]
-            for data in selected:
-                condition = (
-                    (df["data"].astype(str) == str(data["data"])) &
-                    (df["evento"] == data["evento"]) &
-                    (df["aposta"] == data["aposta"]) &
-                    (abs(df["odd"] - float(data["odd"])) < 1e-9)
-                )
-                indices = df[condition].index
-                if not indices.empty:
-                    df = df.drop(indices)
-            st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
-            salvar_historico(st.session_state["historico_apostas_df"])
-            st.success("Aposta(s) removida(s) com sucesso.")
-            st.experimental_rerun()
+selected = response.get("selected_rows", [])
+if len(selected) > 0 and st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
+    df = st.session_state["historico_apostas_df"]
+    for data in selected:
+        condition = (
+            (df["data"].astype(str) == str(data["data"])) &
+            (df["evento"] == data["evento"]) &
+            (df["aposta"] == data["aposta"]) &
+            (abs(df["odd"] - float(data["odd"])) < 1e-9)
+        )
+        indices = df[condition].index
+        if not indices.empty:
+            df = df.drop(indices)
+    st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
+    salvar_historico(st.session_state["historico_apostas_df"])
+    st.success("Aposta(s) removida(s) com sucesso.")
+    st.experimental_rerun()
 
-        # Atualiza histórico se houver edições no grid
-        if response["data"] is not None:
-            df_updated = pd.DataFrame(response["data"])
-            if not df_updated.equals(st.session_state["historico_apostas_df"].astype(str)):
-                st.session_state["historico_apostas_df"] = df_updated
-                salvar_historico(st.session_state["historico_apostas_df"])
+# Atualiza histórico se houver edições no grid
+if response["data"] is not None:
+    df_updated = pd.DataFrame(response["data"])
+    if not df_updated.equals(st.session_state["historico_apostas_df"].astype(str)):
+        st.session_state["historico_apostas_df"] = df_updated
+        salvar_historico(st.session_state["historico_apostas_df"])
 
-        df_hist_resultado = st.session_state["historico_apostas_df"]
-        df_hist_resultado = df_hist_resultado[
-            df_hist_resultado["resultado"].notna() & (df_hist_resultado["resultado"].str.strip() != "")
-        ]
+df_hist_resultado = st.session_state["historico_apostas_df"]
+df_hist_resultado = df_hist_resultado[
+    df_hist_resultado["resultado"].notna() & (df_hist_resultado["resultado"].str.strip() != "")
+]
 
-        df_hist_resultado["stake"] = pd.to_numeric(df_hist_resultado["stake"], errors="coerce").fillna(0)
-        df_hist_resultado["odd"] = pd.to_numeric(df_hist_resultado["odd"], errors="coerce").fillna(0)
+df_hist_resultado["stake"] = pd.to_numeric(df_hist_resultado["stake"], errors="coerce").fillna(0)
+df_hist_resultado["odd"] = pd.to_numeric(df_hist_resultado["odd"], errors="coerce").fillna(0)
 
-        num_apostas = len(df_hist_resultado)
-        apostas_ganhas = (df_hist_resultado["resultado"] == "ganhou").sum()
-        apostas_perdidas = (df_hist_resultado["resultado"] == "perdeu").sum()
-        montante_investido = df_hist_resultado["stake"].sum()
-        montante_ganho = df_hist_resultado.apply(calcular_retorno, axis=1).sum()
-        yield_percent = ((montante_ganho - montante_investido) / montante_investido * 100) if montante_investido > 0 else 0.0
+num_apostas = len(df_hist_resultado)
+apostas_ganhas = (df_hist_resultado["resultado"] == "ganhou").sum()
+apostas_perdidas = (df_hist_resultado["resultado"] == "perdeu").sum()
+montante_investido = df_hist_resultado["stake"].sum()
+montante_ganho = df_hist_resultado.apply(calcular_retorno, axis=1).sum()
+yield_percent = ((montante_ganho - montante_investido) / montante_investido * 100) if montante_investido > 0 else 0.0
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Número de Apostas", num_apostas)
-            st.metric("Apostas Ganhas", apostas_ganhas)
-            st.metric("Apostas Perdidas", apostas_perdidas)
-        with col2:
-            st.metric("Montante Investido (€)", f"€{montante_investido:.2f}")
-            st.metric("Montante Ganho (€)", f"€{montante_ganho:.2f}")
-        with col3:
-            st.metric("Yield (%)", f"{yield_percent:.2f}%")
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric("Número de Apostas", num_apostas)
+    st.metric("Apostas Ganhas", apostas_ganhas)
+    st.metric("Apostas Perdidas", apostas_perdidas)
+with col2:
+    st.metric("Montante Investido (€)", f"€{montante_investido:.2f}")
+    st.metric("Montante Ganho (€)", f"€{montante_ganho:.2f}")
+with col3:
+    st.metric("Yield (%)", f"{yield_percent:.2f}%")
 
-        # Gráfico: lucro acumulado por mês separado ATP e WTA
-        df_lucro = df_hist_resultado.copy()
+# Gráfico: lucro acumulado por mês separado ATP e WTA
+df_lucro = df_hist_resultado.copy()
 
-        if not df_lucro.empty:
-            def calc_lucro(row):
-                if row["resultado"] == "ganhou":
-                    return row["stake"] * row["odd"] - row["stake"]
-                elif row["resultado"] == "cashout":
-                    return row["stake"] * 0.5 - row["stake"]
-                else:
-                    return -row["stake"]
-
-            df_lucro["lucro"] = df_lucro.apply(calc_lucro, axis=1)
-            df_lucro["ano_mes"] = pd.to_datetime(df_lucro["data"]).dt.strftime('%Y-%m')
-
-            grupo = df_lucro.groupby(["ano_mes", "competicao"])["lucro"].sum().reset_index()
-            tabela = grupo.pivot(index="ano_mes", columns="competicao", values="lucro").fillna(0).sort_index()
-
-            if "ATP" not in tabela.columns:
-                tabela["ATP"] = 0
-            if "WTA" not in tabela.columns:
-                tabela["WTA"] = 0
-
-            tabela["ATP_acum"] = tabela["ATP"].cumsum()
-            tabela["WTA_acum"] = tabela["WTA"].cumsum()
-
-            fig, ax = plt.subplots(figsize=(8, 4))
-            tabela[["ATP_acum", "WTA_acum"]].plot(ax=ax)
-            ax.set_title("Lucro Acumulado por Mês (ATP / WTA)")
-            ax.set_ylabel("Lucro acumulado (€)")
-            ax.set_xlabel("Ano-Mês")
-            ax.legend(["ATP", "WTA"])
-            plt.xticks(rotation=45)
-            st.pyplot(fig)
+if not df_lucro.empty:
+    def calc_lucro(row):
+        if row["resultado"] == "ganhou":
+            return row["stake"] * row["odd"] - row["stake"]
+        elif row["resultado"] == "cashout":
+            return row["stake"] * 0.5 - row["stake"]
         else:
-            st.info("Ainda não há dados suficientes para gerar o gráfico de lucro acumulado por mês.")
+            return -row["stake"]
+
+    df_lucro["lucro"] = df_lucro.apply(calc_lucro, axis=1)
+    df_lucro["ano_mes"] = pd.to_datetime(df_lucro["data"]).dt.strftime('%Y-%m')
+
+    grupo = df_lucro.groupby(["ano_mes", "competicao"])["lucro"].sum().reset_index()
+    tabela = grupo.pivot(index="ano_mes", columns="competicao", values="lucro").fillna(0).sort_index()
+
+    if "ATP" not in tabela.columns:
+        tabela["ATP"] = 0
+    if "WTA" not in tabela.columns:
+        tabela["WTA"] = 0
+
+    tabela["ATP_acum"] = tabela["ATP"].cumsum()
+    tabela["WTA_acum"] = tabela["WTA"].cumsum()
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    tabela[["ATP_acum", "WTA_acum"]].plot(ax=ax)
+    ax.set_title("Lucro Acumulado por Mês (ATP / WTA)")
+    ax.set_ylabel("Lucro acumulado (€)")
+    ax.set_xlabel("Ano-Mês")
+    ax.legend(["ATP", "WTA"])
+    plt.xticks(rotation=45)
+    st.pyplot(fig)
+else:
+    st.info("Ainda não há dados suficientes para gerar o gráfico de lucro acumulado por mês.")
 
 st.divider()
 st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
