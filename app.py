@@ -722,7 +722,7 @@ with tab_hist:
                 st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
                 salvar_historico(st.session_state["historico_apostas_df"])
                 st.success("Aposta(s) removida(s) com sucesso.")
-                st.experimental_rerun()
+                st.rerun()
 
         if hasattr(response, "data") and response.data is not None:
             df_updated = pd.DataFrame(response.data)
