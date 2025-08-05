@@ -648,7 +648,7 @@ with tab_hist:
 
         # Remoção de apostas selecionadas
         selected = response["selected_rows"]
-        if selected and st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
+        if len(selected) > 0 and st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
             df = st.session_state["historico_apostas_df"]
             for data in selected:
                 # Encontra índices que correspondem à aposta
