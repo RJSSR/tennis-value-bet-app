@@ -664,7 +664,28 @@ if "historico_apostas_df" not in st.session_state:
 # Protege o acesso ao response
 selected = response.get("selected_rows", []) if isinstance(response, dict) else []
 
-# Remoção de apostas selecionadas
+# Após criares o AgGrid no teu código (por exemplo, dentro da aba Histórico):
+
+response = AgGrid(
+    df_hist,
+    gridOptions=grid_options,
+    allow_unsafe_jscode=True,
+    enable_enterprise_modules=False,
+    update_mode=GridUpdateMode.MODEL_CHANGED,
+    data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+    height=400,
+    fit_columns_on_grid_load=True,
+    reload_data=True,
+    theme="fresh"
+)
+
+# Captura as linhas selecionadas sempre após o AgGrid
+selected = response.get("selected_rows", [])
+
+# Mostra na interface quantas apostas estão selecionadas (útil para debug)
+st.write(f"Apostas selecionadas: {len(selected)}")
+
+# Botão para remover apostas selecionadas
 if st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
     if len(selected) == 0:
         st.warning("Nenhuma aposta foi selecionada.")
@@ -679,7 +700,6 @@ if st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
             cond = (df["data"].astype(str).str.strip() == row_data)
             cond &= (df["evento"] == data.get("evento", ""))
             cond &= (df["aposta"] == data.get("aposta", ""))
-
             try:
                 data_odd = float(data.get("odd", 0))
                 cond &= (abs(df["odd"].astype(float) - data_odd) < 1e-9)
@@ -694,12 +714,13 @@ if st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
         st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
         salvar_historico(st.session_state["historico_apostas_df"])
         st.success("Aposta(s) removida(s) com sucesso.")
-        st.rerun()
+        st.rerun()  # ou st.rerun() conforme tua versão do Streamlit
 
-# Atualização do histórico, se necessário
-if isinstance(response, dict) and response.get("data") is not None:
+# Também podes atualizar o histórico se o usuário editar direto no grid
+if response["data"] is not None:
     df_updated = pd.DataFrame(response["data"])
 
+    # Remove colunas extras que não queres guardar, ex:
     if "remove" in df_updated.columns:
         df_updated = df_updated.drop(columns=["remove"])
 
