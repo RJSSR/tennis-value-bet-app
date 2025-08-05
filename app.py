@@ -665,33 +665,36 @@ if "historico_apostas_df" not in st.session_state:
 selected = response.get("selected_rows", []) if isinstance(response, dict) else []
 
 # Remoção de apostas selecionadas
-if len(selected) > 0 and st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
-    df = st.session_state["historico_apostas_df"].reset_index(drop=True)
-    for data in selected:
-        if not isinstance(data, dict):
-            st.warning(f"Dado inesperado em 'selected_rows': {data} (tipo: {type(data)})")
-            continue
+if st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
+    if len(selected) == 0:
+        st.warning("Nenhuma aposta foi selecionada.")
+    else:
+        df = st.session_state["historico_apostas_df"].reset_index(drop=True)
+        for data in selected:
+            if not isinstance(data, dict):
+                st.warning(f"Dado inesperado em 'selected_rows': {data} (tipo: {type(data)})")
+                continue
 
-        row_data = str(data.get("data", "")).strip()
-        cond = (df["data"].astype(str).str.strip() == row_data)
-        cond &= (df["evento"] == data.get("evento", ""))
-        cond &= (df["aposta"] == data.get("aposta", ""))
+            row_data = str(data.get("data", "")).strip()
+            cond = (df["data"].astype(str).str.strip() == row_data)
+            cond &= (df["evento"] == data.get("evento", ""))
+            cond &= (df["aposta"] == data.get("aposta", ""))
 
-        try:
-            data_odd = float(data.get("odd", 0))
-            cond &= (abs(df["odd"].astype(float) - data_odd) < 1e-9)
-        except Exception as e:
-            st.warning(f"Erro ao processar odd: {e}")
-            cond &= False
+            try:
+                data_odd = float(data.get("odd", 0))
+                cond &= (abs(df["odd"].astype(float) - data_odd) < 1e-9)
+            except Exception as e:
+                st.warning(f"Erro ao processar odd: {e}")
+                cond &= False
 
-        indices = df[cond].index
-        if not indices.empty:
-            df = df.drop(indices)
+            indices = df[cond].index
+            if not indices.empty:
+                df = df.drop(indices)
 
-    st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
-    salvar_historico(st.session_state["historico_apostas_df"])
-    st.success("Aposta(s) removida(s) com sucesso.")
-    st.rerun()
+        st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
+        salvar_historico(st.session_state["historico_apostas_df"])
+        st.success("Aposta(s) removida(s) com sucesso.")
+        st.rerun()
 
 # Atualização do histórico, se necessário
 if isinstance(response, dict) and response.get("data") is not None:
