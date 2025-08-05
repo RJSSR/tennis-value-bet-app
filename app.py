@@ -602,21 +602,153 @@ with tab_auto:
                         st.success(f"Aposta {nova_aposta['aposta']} registrada automaticamente (Jogador B)")
 
 
+def salvar_historico(df):
+    st.session_state["historico_apostas_df"] = df
 
+# Inicializa o histórico se ainda não existir
+if "historico_apostas_df" not in st.session_state:
+    st.session_state["historico_apostas_df"] = pd.DataFrame({
+        "data": ["2025-08-01", "2025-08-02"],
+        "competicao": ["ATP", "WTA"],
+        "evento": ["Evento A", "Evento B"],
+        "aposta": ["Aposta 1", "Aposta 2"],
+        "odd": [1.5, 2.0],
+        "stake": [10, 20],
+        "resultado": ["ganhou", "perdeu"],
+    })
 
+df_hist = st.session_state["historico_apostas_df"].copy()
+df_hist = df_hist.fillna("").reset_index(drop=True)
 
-data = {
-    "data": ["2025-08-01", "2025-08-02"],
-    "evento": ["Evento A", "Evento B"],
-    "aposta": ["Aposta 1", "Aposta 2"],
-    "odd": [1.5, 2.0],
-    "stake": [10, 20],
-    "resultado": ["ganhou", "perdeu"],
-}
+st.header("📊 Histórico de Apostas")
 
-df_test = pd.DataFrame(data).astype(str).fillna("")
+if df_hist.empty:
+    st.info("Nenhuma aposta registrada.")
+else:
+    resultados_validos = ["", "ganhou", "perdeu", "cashout"]
+    gb = GridOptionsBuilder.from_dataframe(df_hist)
+    gb.configure_column("resultado", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": resultados_validos})
+    gb.configure_selection(selection_mode="multiple", use_checkbox=True, groupSelectsChildren=True)
+    grid_options = gb.build()
 
-st.write("Teste AgGrid simples")
+    response = AgGrid(
+        df_hist,
+        gridOptions=grid_options,
+        update_mode=GridUpdateMode.MODEL_CHANGED | GridUpdateMode.SELECTION_CHANGED,
+        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+        fit_columns_on_grid_load=True,
+        height=400,
+        theme="fresh",
+    )
 
-response = AgGrid(df_test, height=300, theme="fresh")
-st.write(response)
+    # Usa o atributo selected_rows do objeto response corretamente
+    selected = getattr(response, "selected_rows", [])
+    st.write(f"Apostas selecionadas: {len(selected)}")
+
+    if st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
+        if len(selected) == 0:
+            st.warning("Nenhuma aposta foi selecionada.")
+        else:
+            df = st.session_state["historico_apostas_df"].copy().reset_index(drop=True)
+            for data in selected:
+                cond = (df["data"].astype(str).str.strip() == str(data.get("data", "")).strip())
+                cond &= (df["evento"] == data.get("evento", ""))
+                cond &= (df["aposta"] == data.get("aposta", ""))
+                try:
+                    data_odd = float(data.get("odd", 0))
+                    cond &= (abs(df["odd"].astype(float) - data_odd) < 1e-9)
+                except Exception:
+                    cond &= False
+                indices = df[cond].index
+                if not indices.empty:
+                    df = df.drop(indices)
+
+            st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
+            salvar_historico(st.session_state["historico_apostas_df"])
+            st.success("Aposta(s) removida(s) com sucesso.")
+            st.experimental_rerun()
+
+    if hasattr(response, "data") and response.data is not None:
+        df_updated = pd.DataFrame(response.data)
+        if "remove" in df_updated.columns:
+            df_updated = df_updated.drop(columns=["remove"])
+        df_hist_str = st.session_state["historico_apostas_df"].astype(str)
+        df_updated_str = df_updated.astype(str)
+        if not df_updated_str.equals(df_hist_str):
+            st.session_state["historico_apostas_df"] = df_updated
+            salvar_historico(df_updated)
+
+    # --- Métricas e Análise ---
+    df_hist_resultado = st.session_state["historico_apostas_df"]
+    df_hist_resultado = df_hist_resultado[
+        df_hist_resultado["resultado"].notna() & (df_hist_resultado["resultado"].str.strip() != "")
+    ].copy()
+
+    df_hist_resultado["stake"] = pd.to_numeric(df_hist_resultado["stake"], errors="coerce").fillna(0)
+    df_hist_resultado["odd"] = pd.to_numeric(df_hist_resultado["odd"], errors="coerce").fillna(0)
+
+    def calcular_retorno(row):
+        if row["resultado"] == "ganhou":
+            return row["stake"] * row["odd"]
+        elif row["resultado"] == "cashout":
+            return row["stake"] * 0.5
+        else:
+            return 0
+
+    num_apostas = len(df_hist_resultado)
+    apostas_ganhas = (df_hist_resultado["resultado"] == "ganhou").sum()
+    apostas_perdidas = (df_hist_resultado["resultado"] == "perdeu").sum()
+    montante_investido = df_hist_resultado["stake"].sum()
+    montante_ganho = df_hist_resultado.apply(calcular_retorno, axis=1).sum()
+    yield_percent = ((montante_ganho - montante_investido) / montante_investido * 100) if montante_investido > 0 else 0.0
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Número de Apostas", num_apostas)
+        st.metric("Apostas Ganhas", apostas_ganhas)
+        st.metric("Apostas Perdidas", apostas_perdidas)
+    with col2:
+        st.metric("Montante Investido (€)", f"€{montante_investido:.2f}")
+        st.metric("Montante Ganho (€)", f"€{montante_ganho:.2f}")
+    with col3:
+        st.metric("Yield (%)", f"{yield_percent:.2f}%")
+
+    df_lucro = df_hist_resultado.copy()
+    if not df_lucro.empty:
+        def calc_lucro(row):
+            if row["resultado"] == "ganhou":
+                return row["stake"] * row["odd"] - row["stake"]
+            elif row["resultado"] == "cashout":
+                return row["stake"] * 0.5 - row["stake"]
+            else:
+                return -row["stake"]
+
+        df_lucro["lucro"] = df_lucro.apply(calc_lucro, axis=1)
+        df_lucro["ano_mes"] = pd.to_datetime(df_lucro["data"], errors="coerce").dt.strftime('%Y-%m')
+        df_lucro = df_lucro[df_lucro["ano_mes"].notna()]
+
+        grupo = df_lucro.groupby(["ano_mes", "competicao"])["lucro"].sum().reset_index()
+        tabela = grupo.pivot(index="ano_mes", columns="competicao", values="lucro").fillna(0).sort_index()
+
+        if "ATP" not in tabela.columns:
+            tabela["ATP"] = 0
+        if "WTA" not in tabela.columns:
+            tabela["WTA"] = 0
+
+        tabela["ATP_acum"] = tabela["ATP"].cumsum()
+        tabela["WTA_acum"] = tabela["WTA"].cumsum()
+
+        fig, ax = plt.subplots(figsize=(8, 4))
+        tabela[["ATP_acum", "WTA_acum"]].plot(ax=ax)
+        ax.set_title("Lucro Acumulado por Mês (ATP / WTA)")
+        ax.set_ylabel("Lucro acumulado (€)")
+        ax.set_xlabel("Ano-Mês")
+        ax.legend(["ATP", "WTA"])
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
+    else:
+        st.info("Ainda não há dados suficientes para gerar o gráfico de lucro acumulado por mês.")
+
+    st.divider()
+    st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
+
