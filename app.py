@@ -605,23 +605,18 @@ with tab_auto:
 
 
 
-response = AgGrid(
-    df_hist,
-    gridOptions=grid_options,
-    update_mode=GridUpdateMode.MODEL_CHANGED | GridUpdateMode.SELECTION_CHANGED,
-    data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-    fit_columns_on_grid_load=True,
-    height=400,
-    theme="fresh",
-)
+data = {
+    "data": ["2025-08-01", "2025-08-02"],
+    "evento": ["Evento A", "Evento B"],
+    "aposta": ["Aposta 1", "Aposta 2"],
+    "odd": [1.5, 2.0],
+    "stake": [10, 20],
+    "resultado": ["ganhou", "perdeu"],
+}
 
-# DEBUG: mostrar tipo e chaves principais do response
-if isinstance(response, dict):
-    st.write("Response keys and their types:")
-    for key, value in response.items():
-        st.write(f"{key}: {type(value)}")
-    
-    st.write("Selected rows:")
-    st.write(response.get("selected_rows", []))
-else:
-    st.write("Response não é dict. Tipo:", type(response))
+df_test = pd.DataFrame(data).astype(str).fillna("")
+
+st.write("Teste AgGrid simples")
+
+response = AgGrid(df_test, height=300, theme="fresh")
+st.write(response)
