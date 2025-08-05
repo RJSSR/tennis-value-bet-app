@@ -602,6 +602,8 @@ with tab_auto:
                         st.success(f"Aposta {nova_aposta['aposta']} registrada automaticamente (Jogador B)")
 
 
+
+
 def salvar_historico(df):
     st.session_state["historico_apostas_df"] = df
 
@@ -641,8 +643,8 @@ else:
         theme="fresh",
     )
 
-    # Usa o atributo selected_rows do objeto response corretamente
-    selected = getattr(response, "selected_rows", [])
+    # Garante que selected nunca é None
+    selected = getattr(response, "selected_rows", []) or []
     st.write(f"Apostas selecionadas: {len(selected)}")
 
     if st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
@@ -651,6 +653,10 @@ else:
         else:
             df = st.session_state["historico_apostas_df"].copy().reset_index(drop=True)
             for data in selected:
+                if not isinstance(data, dict):
+                    st.warning(f"Dado inesperado em 'selected_rows': {data} (tipo: {type(data)})")
+                    continue
+
                 cond = (df["data"].astype(str).str.strip() == str(data.get("data", "")).strip())
                 cond &= (df["evento"] == data.get("evento", ""))
                 cond &= (df["aposta"] == data.get("aposta", ""))
@@ -659,6 +665,7 @@ else:
                     cond &= (abs(df["odd"].astype(float) - data_odd) < 1e-9)
                 except Exception:
                     cond &= False
+
                 indices = df[cond].index
                 if not indices.empty:
                     df = df.drop(indices)
@@ -668,6 +675,7 @@ else:
             st.success("Aposta(s) removida(s) com sucesso.")
             st.experimental_rerun()
 
+    # Atualiza histórico caso tenha sido editado direto no grid
     if hasattr(response, "data") and response.data is not None:
         df_updated = pd.DataFrame(response.data)
         if "remove" in df_updated.columns:
@@ -751,4 +759,3 @@ else:
 
     st.divider()
     st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
-
