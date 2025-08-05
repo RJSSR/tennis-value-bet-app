@@ -661,13 +661,13 @@ with tab_hist:
 if "historico_apostas_df" not in st.session_state:
     st.session_state["historico_apostas_df"] = pd.DataFrame()
 
-# Protege o acesso ao response
-selected = response.get("selected_rows", []) if isinstance(response, dict) else []
+# Garante que 'response' está definido e é dict antes de tentar aceder
+if 'response' in locals() and isinstance(response, dict):
+    selected = response.get("selected_rows", [])
+else:
+    selected = []
 
-# Captura as linhas selecionadas sempre após o AgGrid
-selected = response.get("selected_rows", []) if response else []
-
-# Mostra na interface quantas apostas estão selecionadas (útil para debug)
+# Debug: mostrar quantas apostas estão selecionadas
 st.write(f"Apostas selecionadas: {len(selected)}")
 
 # Botão para remover apostas selecionadas
@@ -699,7 +699,7 @@ if st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
         st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
         salvar_historico(st.session_state["historico_apostas_df"])
         st.success("Aposta(s) removida(s) com sucesso.")
-        st.rerun()  # ou st.rerun() conforme tua versão do Streamlit
+        st.rerun()
 
 # Também podes atualizar o histórico se o usuário editar direto no grid
 if response["data"] is not None:
