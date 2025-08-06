@@ -339,7 +339,7 @@ with st.sidebar:
 
 if btn_atualizar:
     st.cache_data.clear()
-    st.experimental_rerun()
+    st.rerun()
 
 superficie_en = superficies_map[superficie_pt]
 
