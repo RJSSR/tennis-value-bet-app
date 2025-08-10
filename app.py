@@ -528,14 +528,13 @@ with tab_manual:
             "stake": stake_usar,
             "resultado": "",
             "competicao": tipo_competicao,
+            "torneio": torneio_selec,
         }
         novo_df = pd.DataFrame([nova_aposta])
         st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], novo_df], ignore_index=True)
         salvar_historico(st.session_state["historico_apostas_df"])
         st.success(f"Aposta registrada para {aposta_nome} com odd {odd_usar} e stake €{stake_usar:.2f}")
-        st.rerun()  # <- Faz rerun automático logo após registro!
-
-# ... (mantém aba automática e histórico como já adaptado, sempre usando .stake e st.rerun() ao registrar apostas automáticas)
+        st.rerun()
 
 ### --- ABA AUTOMÁTICA ---
 with tab_auto:
@@ -685,6 +684,7 @@ with tab_auto:
                                 "stake": row["Stake A raw"],
                                 "resultado": "",
                                 "competicao": tipo_competicao,
+                                "torneio": torneio_selec,
                             }
                             st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], pd.DataFrame([nova_aposta_plus])], ignore_index=True)
                             salvar_historico(st.session_state["historico_apostas_df"])
@@ -701,6 +701,7 @@ with tab_auto:
                                 "stake": row["Stake A raw"],
                                 "resultado": "",
                                 "competicao": tipo_competicao,
+                                "torneio": torneio_selec,
                             }
                             st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], pd.DataFrame([nova_aposta])], ignore_index=True)
                             salvar_historico(st.session_state["historico_apostas_df"])
@@ -718,6 +719,7 @@ with tab_auto:
                                 "stake": row["Stake B raw"],
                                 "resultado": "",
                                 "competicao": tipo_competicao,
+                                "torneio": torneio_selec,
                             }
                             st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], pd.DataFrame([nova_aposta_plus])], ignore_index=True)
                             salvar_historico(st.session_state["historico_apostas_df"])
@@ -734,6 +736,7 @@ with tab_auto:
                                 "stake": row["Stake B raw"],
                                 "resultado": "",
                                 "competicao": tipo_competicao,
+                                "torneio": torneio_selec,
                             }
                             st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], pd.DataFrame([nova_aposta])], ignore_index=True)
                             salvar_historico(st.session_state["historico_apostas_df"])
