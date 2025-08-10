@@ -307,12 +307,13 @@ def calcular_retorno(aposta):
         return 0.0
 
 # --- Streamlit app ---
-
 if "historico_apostas_df" not in st.session_state:
     st.session_state["historico_apostas_df"] = carregar_historico()
 
+# Configuração página
 st.set_page_config(page_title="Tennis Value Bets ATP & WTA", page_icon="🎾", layout="wide")
 
+# CSS e título
 st.markdown("""
 <style>
   .main-title {color:#176ab4; font-size:2.5em; font-weight:700; margin-bottom:0.2em;}
@@ -341,7 +342,7 @@ with st.sidebar:
 
 if btn_atualizar:
     st.cache_data.clear()
-    st.rerun()
+    st.experimental_rerun()
 
 superficie_en = superficies_map[superficie_pt]
 
@@ -368,7 +369,7 @@ tab_manual, tab_auto, tab_hist = st.tabs([
     "Histórico"
 ])
 
-### --- ABA MANUAL ---
+# --- ABA MANUAL ---
 with tab_manual:
     st.header(f"Análise Manual de Jogos {tipo_competicao}")
     jogo_selecionado_label = st.selectbox("Selecionar jogo:", [j["label"] for j in jogos])
@@ -597,7 +598,7 @@ with tab_auto:
                 sugerir_a = f"{jogador_a} +1.5 sets (odd: {odd_plus_a:.2f})"
                 cond_a_especial = True
             elif oA > 2.70:
-                odd_plus_a = oA / 1.7
+                odd_plus_a = oO / 1.7
                 sugerir_a = f"{jogador_a} +1.5 sets (odd: {odd_plus_a:.2f})"
                 cond_a_especial = True
 
@@ -745,6 +746,45 @@ with tab_auto:
 
 ### --- ABA HISTÓRICO ---
 with tab_hist:
+    # Exportar histórico
+    st.subheader("📤 Exportar Histórico")
+    if not st.session_state["historico_apostas_df"].empty:
+        csv_export = st.session_state["historico_apostas_df"].to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="💾 Download histórico CSV",
+            data=csv_export,
+            file_name="historico_apostas.csv",
+            mime="text/csv"
+        )
+    # Importar histórico
+    st.subheader("📥 Importar Histórico")
+    uploaded_file = st.file_uploader("Selecionar ficheiro CSV", type="csv")
+    if uploaded_file is not None:
+        try:
+            df_importado = pd.read_csv(uploaded_file)
+            if "data" in df_importado.columns:
+                df_importado["data"] = df_importado["data"].astype(str)
+            # Remover coluna antiga se existir
+            if "valor_apostado" in df_importado.columns:
+                df_importado = df_importado.drop(columns=["valor_apostado"])
+            opcao = st.radio(
+                "Como importar?",
+                ("Substituir histórico atual", "Adicionar ao histórico atual")
+            )
+            if st.button("Importar agora"):
+                if opcao == "Substituir histórico atual":
+                    st.session_state["historico_apostas_df"] = df_importado
+                else:
+                    st.session_state["historico_apostas_df"] = pd.concat(
+                        [st.session_state["historico_apostas_df"], df_importado],
+                        ignore_index=True
+                    )
+                salvar_historico(st.session_state["historico_apostas_df"])
+                st.success("Histórico importado com sucesso ✅")
+                st.rerun()
+        except Exception as e:
+            st.error(f"Erro ao importar CSV: {e}")
+
     if "historico_apostas_df" not in st.session_state or st.session_state["historico_apostas_df"].empty:
         st.info("Nenhuma aposta registrada.")
     else:
