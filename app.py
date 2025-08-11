@@ -746,13 +746,13 @@ with tab_auto:
 
 ### --- ABA HISTÓRICO ---
 with tab_hist:
-    if st.session_state["historico_df"].empty:
+    if st.session_state["historico_apostas_df"].empty:
         st.info("Nenhuma aposta registrada.")
     else:
         import base64
 
         # Preparar CSV para exportação
-        csv_str = st.session_state["historico_df"].to_csv(index=False)
+        csv_str = st.session_state["historico_apostas_df"].to_csv(index=False)
         b64 = base64.b64encode(csv_str.encode()).decode()
 
         # CSS para tornar ícones de importação/exportação visíveis permanentemente e posicionados
@@ -811,17 +811,17 @@ with tab_hist:
 
                 if st.button("Confirmar importação"):
                     if modo == "Substituir":
-                        st.session_state["historico_df"] = df_import
+                        st.session_state["historico_apostas_df"] = df_import
                     else:
-                        st.session_state["historico_df"] = pd.concat([st.session_state["historico_df"], df_import], ignore_index=True)
-                    salvar_historico(st.session_state["historico_df"])
+                        st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], df_import], ignore_index=True)
+                    salvar_historico(st.session_state["historico_apostas_df"])
                     st.success("Importação concluída com sucesso!")
                     st.experimental_rerun()
             except Exception as e:
                 st.error(f"Erro ao importar CSV: {e}")
 
         # Preparar dataframe para AgGrid, removendo coluna indesejada
-        df_hist = st.session_state["historico_df"].copy()
+        df_hist = st.session_state["historico_apostas_df"].copy()
         if "valor_apostado" in df_hist.columns:
             df_hist = df_hist.drop(columns=["valor_apostado"])
 
@@ -853,7 +853,7 @@ with tab_hist:
             if not selected_rows:
                 st.warning("Selecione pelo menos uma aposta para remover.")
             else:
-                df = st.session_state["historico_df"].copy()
+                df = st.session_state["historico_apostas_df"].copy()
                 for sel in selected_rows:
                     cond = (
                         (df["data"].astype(str).str.strip() == str(sel.get("data", "")).strip()) &
@@ -868,7 +868,7 @@ with tab_hist:
                     indices = df.index[cond]
                     df.drop(index=indices, inplace=True)
                 df.reset_index(drop=True, inplace=True)
-                st.session_state["historico_df"] = df
+                st.session_state["historico_apostas_df"] = df
                 salvar_historico(df)
                 st.success("Remoção efetuada.")
                 st.experimental_rerun()
@@ -877,12 +877,12 @@ with tab_hist:
         df_new = pd.DataFrame(grid_response["data"])
         if "valor_apostado" in df_new.columns:
             df_new = df_new.drop(columns=["valor_apostado"])
-        if not df_new.equals(st.session_state["historico_df"]):
-            st.session_state["historico_df"] = df_new
+        if not df_new.equals(st.session_state["historico_apostas_df"]):
+            st.session_state["historico_apostas_df"] = df_new
             salvar_historico(df_new)
 
         # Métricas e gráficos
-        df_valid = st.session_state["historico_df"]
+        df_valid = st.session_state["historico_apostas_df"]
         df_valid = df_valid[df_valid["resultado"].str.strip() != ""].copy()
 
         df_valid["stake"] = pd.to_numeric(df_valid["stake"], errors='coerce').fillna(0)
