@@ -598,7 +598,7 @@ with tab_auto:
                 sugerir_a = f"{jogador_a} +1.5 sets (odd: {odd_plus_a:.2f})"
                 cond_a_especial = True
             elif oA > 2.70:
-                odd_plus_a = oO / 1.7
+                odd_plus_a = oA / 1.7
                 sugerir_a = f"{jogador_a} +1.5 sets (odd: {odd_plus_a:.2f})"
                 cond_a_especial = True
 
