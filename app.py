@@ -18,7 +18,8 @@ ODD_MIN = 1.425
 ODD_MAX = 3.15
 
 BASE_URL = "https://www.tennisexplorer.com"
-HISTORICO_CSV = "historico_apostas.csv"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+HISTORICO_CSV = os.path.join(BASE_DIR, "historico_apostas.csv")
 
 superficies_map = {"Piso Duro": "Hard", "Terra": "Clay", "Relva": "Grass"}
 
