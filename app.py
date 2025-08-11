@@ -749,50 +749,70 @@ with tab_hist:
     if st.session_state["historico_apostas_df"].empty:
         st.info("Nenhuma aposta registrada.")
     else:
-        # Barra discreta para exportar/importar
-        col_exp, col_imp, _ = st.columns([1, 1, 6])
-        with col_exp:
-            csv_export = st.session_state["historico_apostas_df"].to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="💾 Exportar",
-                data=csv_export,
-                file_name="historico_apostas.csv",
-                mime="text/csv",
-                help="Download histórico como CSV"
-            )
-        with col_imp:
-            uploaded = st.file_uploader("", type="csv", label_visibility="collapsed")
-            if uploaded is not None:
-                try:
-                    df_importado = pd.read_csv(uploaded)
-                    if "valor_apostado" in df_importado.columns:
-                        df_importado = df_importado.drop(columns=["valor_apostado"])
-                    opcao = st.radio(
-                        "Modo",
-                        ("Acrescentar", "Substituir"),
-                        horizontal=True,
-                        index=0,
-                        key="op_import"
-                    )
-                    if st.button("Importar", key="btn_importar"):
-                        if opcao == "Substituir":
-                            st.session_state["historico_apostas_df"] = df_importado
-                        else:
-                            st.session_state["historico_apostas_df"] = pd.concat(
-                                [st.session_state["historico_apostas_df"], df_importado],
-                                ignore_index=True
-                            )
-                        salvar_historico(st.session_state["historico_apostas_df"])
-                        st.success("Histórico importado com sucesso ✅")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"Erro ao importar CSV: {e}")
+        import base64
 
-        # Renderização da tabela e funcionalidades
+        # Preparar CSV para exportação
+        csv_str = st.session_state["historico_apostas_df"].to_csv(index=False)
+        b64_csv = base64.b64encode(csv_str.encode()).decode()
+
+        # CSS e elementos HTML para ícones de import e export que aparecem no hover
+        st.markdown(f"""
+        <style>
+        .table-wrap {{ position: relative; }}
+        .action-icons {{
+            position: absolute; top: 8px; right: 10px;
+            display: flex; gap: 6px;
+            opacity: 0; transition: opacity 0.3s;
+            z-index: 100;
+        }}
+        .table-wrap:hover .action-icons {{ opacity: 1; }}
+        .icon-btn {{
+            background: #f0f2f6;
+            border-radius: 4px;
+            padding: 3px 5px;
+            font-size: 18px;
+            text-decoration: none;
+            cursor: pointer;
+            user-select: none;
+        }}
+        .icon-btn:hover {{ background: #e0e2e6; }}
+        #file-upload {{ display:none; }}
+        </style>
+
+        <div class="table-wrap">
+            <div class="action-icons">
+                <a href="data:file/csv;base64,{b64_csv}" download="historico_apostas.csv" class="icon-btn" title="Exportar CSV">💾</a>
+                <label for="file-upload" class="icon-btn" title="Importar CSV">📥</label>
+                <input id="file-upload" type="file" accept=".csv">
+            </div>
+        """, unsafe_allow_html=True)
+
+        # File uploader funcional com Streamlit (oculto, acionado pelo label)
+        uploaded_file = st.file_uploader("", type="csv", label_visibility="collapsed", key="file_upload_hidden")
+
+        if uploaded_file is not None:
+            try:
+                df_upload = pd.read_csv(uploaded_file)
+                if "valor_apostado" in df_upload.columns:
+                    df_upload = df_upload.drop(columns=["valor_apostado"])
+                modo_import = st.radio("Modo de importação:", options=["Acrescentar", "Substituir"], index=0, horizontal=True, key="modo_import")
+                if st.button("Confirmar Importação", key="btn_confirmar_import"):
+                    if modo_import == "Substituir":
+                        st.session_state["historico_apostas_df"] = df_upload
+                    else:
+                        st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], df_upload], ignore_index=True)
+                    salvar_historico(st.session_state["historico_apostas_df"])
+                    st.success("Histórico importado com sucesso ✅")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao importar CSV: {e}")
+
+        # Preparar a tabela
         df_hist = st.session_state["historico_apostas_df"].copy().fillna("").reset_index(drop=True)
         if "valor_apostado" in df_hist.columns:
             df_hist = df_hist.drop(columns=["valor_apostado"])
 
+        # Setup AgGrid para edição e seleção
         resultados_validos = ["", "ganhou", "perdeu", "cashout"]
         gb = GridOptionsBuilder.from_dataframe(df_hist)
         gb.configure_column("resultado", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": resultados_validos})
@@ -809,6 +829,9 @@ with tab_hist:
             theme="fresh",
         )
 
+        st.markdown("</div>", unsafe_allow_html=True)  # fechar div .table-wrap
+
+        # Processar apostas selecionadas para remoção
         selected_raw = getattr(response, "selected_rows", None)
         if selected_raw is None:
             selected = []
@@ -849,7 +872,7 @@ with tab_hist:
                 st.success("Aposta(s) removida(s) com sucesso.")
                 st.rerun()
 
-        # Sincronizar edição direta da tabela
+        # Sincronizar edição direta na tabela
         if hasattr(response, "data") and response.data is not None:
             df_updated = pd.DataFrame(response.data)
             if "remove" in df_updated.columns:
@@ -862,7 +885,7 @@ with tab_hist:
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(df_updated)
 
-        # Cálculo de métricas e gráfico
+        # Cálculo de métricas e gráfico de lucros
         df_hist_resultado = st.session_state["historico_apostas_df"]
         if "valor_apostado" in df_hist_resultado.columns:
             df_hist_resultado = df_hist_resultado.drop(columns=["valor_apostado"])
@@ -938,3 +961,4 @@ with tab_hist:
 
     st.divider()
     st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
+
