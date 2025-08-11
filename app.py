@@ -756,6 +756,7 @@ with tab_hist:
             file_name="historico_apostas.csv",
             mime="text/csv"
         )
+
     # Importar histórico
     st.subheader("📥 Importar Histórico")
     uploaded_file = st.file_uploader("Selecionar ficheiro CSV", type="csv")
@@ -764,7 +765,6 @@ with tab_hist:
             df_importado = pd.read_csv(uploaded_file)
             if "data" in df_importado.columns:
                 df_importado["data"] = df_importado["data"].astype(str)
-            # Remover coluna antiga se existir
             if "valor_apostado" in df_importado.columns:
                 df_importado = df_importado.drop(columns=["valor_apostado"])
             opcao = st.radio(
@@ -785,12 +785,23 @@ with tab_hist:
         except Exception as e:
             st.error(f"Erro ao importar CSV: {e}")
 
+    # Mostrar histórico
     if "historico_apostas_df" not in st.session_state or st.session_state["historico_apostas_df"].empty:
         st.info("Nenhuma aposta registrada.")
     else:
+        st.subheader("📜 Histórico de Apostas")
+
+        # Botão para limpar histórico
+        if st.button("🗑️ Limpar Histórico Completo", type="secondary"):
+            st.session_state["historico_apostas_df"] = pd.DataFrame()
+            salvar_historico(st.session_state["historico_apostas_df"])
+            st.success("Histórico limpo com sucesso.")
+            st.rerun()
+
         df_hist = st.session_state["historico_apostas_df"].copy().fillna("").reset_index(drop=True)
         if "valor_apostado" in df_hist.columns:
             df_hist = df_hist.drop(columns=["valor_apostado"])
+
         resultados_validos = ["", "ganhou", "perdeu", "cashout"]
         gb = GridOptionsBuilder.from_dataframe(df_hist)
         gb.configure_column("resultado", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": resultados_validos})
@@ -807,16 +818,12 @@ with tab_hist:
             theme="fresh",
         )
 
-        selected_raw = getattr(response, "selected_rows", None)
-        if selected_raw is None:
-            selected = []
-        elif hasattr(selected_raw, "to_dict"):
-            selected = selected_raw.to_dict(orient="records")
-        else:
-            selected = selected_raw
-
+        # Seleção simplificada
+        selected = response.get("selected_rows", [])
+        selected = selected if isinstance(selected, list) else []
         st.write(f"Apostas selecionadas: {len(selected)}")
 
+        # Remover apostas selecionadas
         if st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
             if len(selected) == 0:
                 st.warning("Nenhuma aposta foi selecionada.")
@@ -824,6 +831,8 @@ with tab_hist:
                 df = st.session_state["historico_apostas_df"].copy().reset_index(drop=True)
                 if "valor_apostado" in df.columns:
                     df = df.drop(columns=["valor_apostado"])
+                df["odd"] = pd.to_numeric(df["odd"], errors="coerce").round(3)
+
                 for data in selected:
                     if not isinstance(data, dict):
                         st.warning(f"Dado inesperado em 'selected_rows': {data} (tipo: {type(data)})")
@@ -833,8 +842,8 @@ with tab_hist:
                     cond &= (df["evento"] == data.get("evento", ""))
                     cond &= (df["aposta"] == data.get("aposta", ""))
                     try:
-                        data_odd = float(data.get("odd", 0))
-                        cond &= (abs(df["odd"].astype(float) - data_odd) < 1e-9)
+                        data_odd = round(float(data.get("odd", 0)), 3)
+                        cond &= (df["odd"] == data_odd)
                     except Exception:
                         cond &= False
 
@@ -847,20 +856,19 @@ with tab_hist:
                 st.success("Aposta(s) removida(s) com sucesso.")
                 st.rerun()
 
+        # Atualizar dados editados na grid
         if hasattr(response, "data") and response.data is not None:
             df_updated = pd.DataFrame(response.data)
             if "remove" in df_updated.columns:
                 df_updated = df_updated.drop(columns=["remove"])
             if "valor_apostado" in df_updated.columns:
                 df_updated = df_updated.drop(columns=["valor_apostado"])
-            df_hist_str = st.session_state["historico_apostas_df"].astype(str)
-            df_updated_str = df_updated.astype(str)
-            if not df_updated_str.equals(df_hist_str):
+            if not df_updated.equals(st.session_state["historico_apostas_df"]):
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(df_updated)
 
         # Métricas e análise
-        df_hist_resultado = st.session_state["historico_apostas_df"]
+        df_hist_resultado = st.session_state["historico_apostas_df"].copy()
         if "valor_apostado" in df_hist_resultado.columns:
             df_hist_resultado = df_hist_resultado.drop(columns=["valor_apostado"])
         df_hist_resultado = df_hist_resultado[
@@ -870,53 +878,46 @@ with tab_hist:
         df_hist_resultado["stake"] = pd.to_numeric(df_hist_resultado["stake"], errors="coerce").fillna(0)
         df_hist_resultado["odd"] = pd.to_numeric(df_hist_resultado["odd"], errors="coerce").fillna(0)
 
-        def calcular_retorno(row):
+        def calc_resultados(row):
             if row["resultado"] == "ganhou":
-                return row["stake"] * row["odd"]
+                ganho = row["stake"] * row["odd"]
             elif row["resultado"] == "cashout":
-                return row["stake"] * 0.5
+                ganho = row["stake"] * 0.5
             else:
-                return 0
+                ganho = 0
+            return ganho, ganho - row["stake"]
 
-        num_apostas = len(df_hist_resultado)
-        apostas_ganhas = (df_hist_resultado["resultado"] == "ganhou").sum()
-        apostas_perdidas = (df_hist_resultado["resultado"] == "perdeu").sum()
-        montante_investido = df_hist_resultado["stake"].sum()
-        montante_ganho = df_hist_resultado.apply(calcular_retorno, axis=1).sum()
-        yield_percent = ((montante_ganho - montante_investido) / montante_investido * 100) if montante_investido > 0 else 0.0
+        if not df_hist_resultado.empty:
+            df_hist_resultado["ganho"], df_hist_resultado["lucro"] = zip(*df_hist_resultado.apply(calc_resultados, axis=1))
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Número de Apostas", num_apostas)
-            st.metric("Apostas Ganhas", apostas_ganhas)
-            st.metric("Apostas Perdidas", apostas_perdidas)
-        with col2:
-            st.metric("Montante Investido (€)", f"€{montante_investido:.2f}")
-            st.metric("Montante Ganho (€)", f"€{montante_ganho:.2f}")
-        with col3:
-            st.metric("Yield (%)", f"{yield_percent:.2f}%")
+            num_apostas = len(df_hist_resultado)
+            apostas_ganhas = (df_hist_resultado["resultado"] == "ganhou").sum()
+            apostas_perdidas = (df_hist_resultado["resultado"] == "perdeu").sum()
+            montante_investido = df_hist_resultado["stake"].sum()
+            montante_ganho = df_hist_resultado["ganho"].sum()
+            yield_percent = ((montante_ganho - montante_investido) / montante_investido * 100) if montante_investido > 0 else 0.0
 
-        df_lucro = df_hist_resultado.copy()
-        if not df_lucro.empty:
-            def calc_lucro(row):
-                if row["resultado"] == "ganhou":
-                    return row["stake"] * row["odd"] - row["stake"]
-                elif row["resultado"] == "cashout":
-                    return row["stake"] * 0.5 - row["stake"]
-                else:
-                    return -row["stake"]
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Número de Apostas", num_apostas)
+                st.metric("Apostas Ganhas", apostas_ganhas)
+                st.metric("Apostas Perdidas", apostas_perdidas)
+            with col2:
+                st.metric("Montante Investido (€)", f"€{montante_investido:.2f}")
+                st.metric("Montante Ganho (€)", f"€{montante_ganho:.2f}")
+            with col3:
+                st.metric("Yield (%)", f"{yield_percent:.2f}%")
 
-            df_lucro["lucro"] = df_lucro.apply(calc_lucro, axis=1)
-            df_lucro["ano_mes"] = pd.to_datetime(df_lucro["data"], errors="coerce").dt.strftime('%Y-%m')
-            df_lucro = df_lucro[df_lucro["ano_mes"].notna()]
+            # Gráfico de lucro acumulado
+            df_hist_resultado["ano_mes"] = pd.to_datetime(df_hist_resultado["data"], errors="coerce").dt.strftime('%Y-%m')
+            df_hist_resultado = df_hist_resultado[df_hist_resultado["ano_mes"].notna()]
 
-            grupo = df_lucro.groupby(["ano_mes", "competicao"])["lucro"].sum().reset_index()
+            grupo = df_hist_resultado.groupby(["ano_mes", "competicao"])["lucro"].sum().reset_index()
             tabela = grupo.pivot(index="ano_mes", columns="competicao", values="lucro").fillna(0).sort_index()
 
-            if "ATP" not in tabela.columns:
-                tabela["ATP"] = 0
-            if "WTA" not in tabela.columns:
-                tabela["WTA"] = 0
+            for comp in ["ATP", "WTA"]:
+                if comp not in tabela.columns:
+                    tabela[comp] = 0
 
             tabela["ATP_acum"] = tabela["ATP"].cumsum()
             tabela["WTA_acum"] = tabela["WTA"].cumsum()
@@ -934,3 +935,4 @@ with tab_hist:
 
     st.divider()
     st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
+
