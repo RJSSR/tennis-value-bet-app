@@ -291,9 +291,12 @@ def carregar_historico():
     return pd.DataFrame()
 
 def salvar_historico(df):
-    if "valor_apostado" in df.columns:
-        df = df.drop(columns=["valor_apostado"])
-    df.to_csv(HISTORICO_CSV, index=False)
+    caminho = "historico_apostas.csv"
+    df.to_csv(caminho, index=False)
+    if os.path.exists(caminho):
+        st.success(f"Ficheiro guardado com sucesso em: {caminho}")
+    else:
+        st.error("Erro: ficheiro NÃO foi guardado.")
 
 def calcular_retorno(aposta):
     resultado = aposta.get("resultado", "")
