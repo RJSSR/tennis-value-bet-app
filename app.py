@@ -791,7 +791,7 @@ with st.container():  # substitui "tab_hist" se estiveres dentro de tabs, só ad
                     )
                 salvar_historico(st.session_state["historico_apostas_df"])
                 st.success("Histórico importado com sucesso ✅")
-                st.experimental_rerun()
+                st.rerun()
         except Exception as e:
             st.error(f"Erro ao importar CSV: {e}")
 
@@ -807,7 +807,7 @@ with st.container():  # substitui "tab_hist" se estiveres dentro de tabs, só ad
             st.session_state["historico_apostas_df"] = pd.DataFrame(columns=st.session_state["historico_apostas_df"].columns)
             salvar_historico(st.session_state["historico_apostas_df"])
             st.success("Histórico limpo com sucesso.")
-            st.experimental_rerun()
+            st.rerun()
 
         # Preparar DataFrame para AgGrid
         df_hist = st.session_state["historico_apostas_df"].copy().fillna("").reset_index(drop=True)
@@ -864,7 +864,7 @@ with st.container():  # substitui "tab_hist" se estiveres dentro de tabs, só ad
                 st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
                 salvar_historico(st.session_state["historico_apostas_df"])
                 st.success("Aposta(s) removida(s) com sucesso.")
-                st.experimental_rerun()
+                st.rerun()
 
         # Atualizar histórico ao editar na grid
         if "data" in response and response["data"] is not None:
