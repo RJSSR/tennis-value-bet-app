@@ -923,8 +923,8 @@ with tab_hist:
             df_hist_resultado["ganho"], df_hist_resultado["lucro"] = zip(*df_hist_resultado.apply(calc_resultados, axis=1))
 
             num_apostas = len(df_hist_resultado)
-            apostas_ganhas = (df_hist_resultado["resultado"] == "ganhou").sum()
-            apostas_perdidas = (df_hist_resultado["resultado"] == "perdeu").sum()
+            apostas_ganhas = (df_hist_resultado["resultado"] == "GANHO").sum()
+            apostas_perdidas = (df_hist_resultado["resultado"] == "PERDIDO").sum()
             montante_investido = df_hist_resultado["stake"].sum()
             montante_ganho = df_hist_resultado["ganho"].sum()
             yield_percent = ((montante_ganho - montante_investido) / montante_investido * 100) if montante_investido > 0 else 0.0
