@@ -746,156 +746,149 @@ with tab_auto:
 
 ### --- ABA HISTÓRICO ---
 with tab_hist:
-    if st.session_state["historico_apostas_df"].empty:
+    if st.session_state["historico_df"].empty:
         st.info("Nenhuma aposta registrada.")
     else:
         import base64
 
         # Preparar CSV para exportação
-        csv_str = st.session_state["historico_apostas_df"].to_csv(index=False)
-        b64_csv = base64.b64encode(csv_str.encode()).decode()
+        csv_str = st.session_state["historico_df"].to_csv(index=False)
+        b64 = base64.b64encode(csv_str.encode()).decode()
 
-        # CSS e HTML para ícones de import e export que aparecem no hover
-        st.markdown(f"""
+        # CSS para tornar ícones de importação/exportação visíveis permanentemente e posicionados
+        st.markdown("""
         <style>
-        .table-wrap {{ position: relative; }}
-        .action-icons {{
-            position: absolute; top: 8px; right: 10px;
-            display: flex; gap: 6px;
-            opacity: 0; transition: opacity 0.3s;
-            z-index: 100;
-        }}
-        .table-wrap:hover .action-icons {{ opacity: 1; }}
-        .icon-btn {{
+        .table-wrap { position: relative; }
+        .action-icons {
+            opacity: 1 !important;
+            position: absolute !important;
+            top: 8px !important;
+            right: 10px !important;
+            display: flex !important;
+            gap: 6px !important;
+            z-index: 100 !important;
+        }
+        .action-icons a, .action-icons label {
             background: #f0f2f6;
             border-radius: 4px;
             padding: 3px 5px;
             font-size: 18px;
-            text-decoration: none;
             cursor: pointer;
             user-select: none;
-        }}
-        .icon-btn:hover {{ background: #e0e2e6; }}
-        #file-upload {{ display:none; }}
+            transition: background-color 0.3s;
+            text-decoration: none;
+            color: inherit;
+        }
+        .action-icons a:hover, .action-icons label:hover {
+            background: #e0e2e6;
+        }
+        #file-upload {
+            display: none;
+        }
         </style>
-
-        <div class="table-wrap">
-            <div class="action-icons">
-                <a href="data:file/csv;base64,{b64_csv}" download="historico_apostas.csv" class="icon-btn" title="Exportar CSV">💾</a>
-                <label for="file-upload" class="icon-btn" title="Importar CSV">📥</label>
-                <input id="file-upload" type="file" accept=".csv">
-            </div>
         """, unsafe_allow_html=True)
 
-        # Uploader oculto do Streamlit (ativado pelo label acima)
-        uploaded_file = st.file_uploader("", type="csv", label_visibility="collapsed", key="file_upload_hidden")
+        # Inserir botões de exportação e importação como ícones no topo direito do bloco
+        st.markdown(f'''
+        <div class="table-wrap">
+            <div class="action-icons">
+                <a href="data:file/csv;base64,{b64}" download="historico.csv" title="Exportar CSV">💾</a>
+                <label for="file-upload" title="Importar CSV">📥</label>
+                <input type="file" id="file-upload" accept=".csv">
+            </div>
+        ''', unsafe_allow_html=True)
+
+        # Usar uploader escondido para ligar funcionalidade de importação pelo Streamlit normal
+        uploaded_file = st.file_uploader("", accept_multiple_files=False, type=["csv"], label_visibility="collapsed")
 
         if uploaded_file is not None:
             try:
-                df_upload = pd.read_csv(uploaded_file)
-                if "valor_apostado" in df_upload.columns:
-                    df_upload = df_upload.drop(columns=["valor_apostado"])
-                modo_import = st.radio("Modo de importação:", options=["Acrescentar", "Substituir"], index=0, horizontal=True, key="modo_import")
-                if st.button("Confirmar Importação", key="btn_confirmar_import"):
-                    if modo_import == "Substituir":
-                        st.session_state["historico_apostas_df"] = df_upload
+                df_import = pd.read_csv(uploaded_file)
+                if "valor_apostado" in df_import.columns:
+                    df_import = df_import.drop(columns=["valor_apostado"])
+
+                modo = st.radio("Modo de importação:", ("Acrescentar", "Substituir"), horizontal=True, key="modo_importacao")
+
+                if st.button("Confirmar importação"):
+                    if modo == "Substituir":
+                        st.session_state["historico_df"] = df_import
                     else:
-                        st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], df_upload], ignore_index=True)
-                    salvar_historico(st.session_state["historico_apostas_df"])
-                    st.success("Histórico importado com sucesso ✅")
+                        st.session_state["historico_df"] = pd.concat([st.session_state["historico_df"], df_import], ignore_index=True)
+                    salvar_historico(st.session_state["historico_df"])
+                    st.success("Importação concluída com sucesso!")
                     st.experimental_rerun()
             except Exception as e:
                 st.error(f"Erro ao importar CSV: {e}")
 
-        # Preparar a tabela para visualização e edição
-        df_hist = st.session_state["historico_apostas_df"].copy().fillna("").reset_index(drop=True)
+        # Preparar dataframe para AgGrid, removendo coluna indesejada
+        df_hist = st.session_state["historico_df"].copy()
         if "valor_apostado" in df_hist.columns:
             df_hist = df_hist.drop(columns=["valor_apostado"])
 
         resultados_validos = ["", "ganhou", "perdeu", "cashout"]
         gb = GridOptionsBuilder.from_dataframe(df_hist)
-        gb.configure_column("resultado", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": resultados_validos})
-        gb.configure_selection(selection_mode="multiple", use_checkbox=True, groupSelectsChildren=True)
+        gb.configure_column("resultado", editable=True, cellEditor="agSelectCellEditor",
+                            cellEditorParams={"values": resultados_validos})
+        gb.configure_selection("multiple", use_checkbox=True, groupSelectsChildren=True)
+        # Desativar funcionalidades de drag & drop se existentes
+        gb.configure_grid_options(suppressRowDrag=True, suppressMovableColumns=True)
         grid_options = gb.build()
 
-        response = AgGrid(
-            df_hist,
-            gridOptions=grid_options,
-            update_mode=GridUpdateMode.MODEL_CHANGED | GridUpdateMode.SELECTION_CHANGED,
-            data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-            fit_columns_on_grid_load=True,
-            height=400,
-            theme="fresh",
-        )
+        grid_response = AgGrid(df_hist,
+                              grid_options=grid_options,
+                              update_mode=GridUpdateMode.MODEL_CHANGED | GridUpdateMode.SELECTION_CHANGED,
+                              data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+                              fit_columns_on_grid_load=True,
+                              height=400,
+                              theme="fresh")
 
-        st.markdown("</div>", unsafe_allow_html=True)  # fechar container
+        # Fechar div da tabela e botões
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        selected_raw = getattr(response, "selected_rows", None)
-        if selected_raw is None:
-            selected = []
-        elif hasattr(selected_raw, "to_dict"):
-            selected = selected_raw.to_dict(orient="records")
-        else:
-            selected = selected_raw
+        # Processar seleção para remoção
+        selected_rows = grid_response.get("selected_rows", [])
+        st.write(f"Seleção: {len(selected_rows)} apostas")
 
-        st.write(f"Apostas selecionadas: {len(selected)}")
-
-        if st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
-            if len(selected) == 0:
-                st.warning("Nenhuma aposta foi selecionada.")
+        if st.button("Remover apostas selecionadas", type="primary"):
+            if not selected_rows:
+                st.warning("Selecione pelo menos uma aposta para remover.")
             else:
-                df = st.session_state["historico_apostas_df"].copy().reset_index(drop=True)
-                if "valor_apostado" in df.columns:
-                    df = df.drop(columns=["valor_apostado"])
-                for data in selected:
-                    if not isinstance(data, dict):
-                        st.warning(f"Dado inesperado em 'selected_rows': {data} (tipo: {type(data)})")
-                        continue
-
-                    cond = (df["data"].astype(str).str.strip() == str(data.get("data", "")).strip())
-                    cond &= (df["evento"] == data.get("evento", ""))
-                    cond &= (df["aposta"] == data.get("aposta", ""))
+                df = st.session_state["historico_df"].copy()
+                for sel in selected_rows:
+                    cond = (
+                        (df["data"].astype(str).str.strip() == str(sel.get("data", "")).strip()) &
+                        (df["evento"] == sel.get("evento", "")) &
+                        (df["aposta"] == sel.get("aposta", ""))
+                    )
                     try:
-                        data_odd = float(data.get("odd", 0))
-                        cond &= (abs(df["odd"].astype(float) - data_odd) < 1e-9)
+                        odd_sel = float(sel.get("odd", 0))
+                        cond &= (df["odd"].round(6) == round(odd_sel, 6))
                     except Exception:
                         cond &= False
-
-                    indices = df[cond].index
-                    if not indices.empty:
-                        df = df.drop(indices)
-
-                st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
-                salvar_historico(st.session_state["historico_apostas_df"])
-                st.success("Aposta(s) removida(s) com sucesso.")
+                    indices = df.index[cond]
+                    df.drop(index=indices, inplace=True)
+                df.reset_index(drop=True, inplace=True)
+                st.session_state["historico_df"] = df
+                salvar_historico(df)
+                st.success("Remoção efetuada.")
                 st.experimental_rerun()
 
-        # Sincroniza edição direta na tabela
-        if hasattr(response, "data") and response.data is not None:
-            df_updated = pd.DataFrame(response.data)
-            if "remove" in df_updated.columns:
-                df_updated = df_updated.drop(columns=["remove"])
-            if "valor_apostado" in df_updated.columns:
-                df_updated = df_updated.drop(columns=["valor_apostado"])
-            df_hist_str = st.session_state["historico_apostas_df"].astype(str)
-            df_updated_str = df_updated.astype(str)
-            if not df_updated_str.equals(df_hist_str):
-                st.session_state["historico_apostas_df"] = df_updated
-                salvar_historico(df_updated)
+        # Sincronizar edições feitas diretamente na tabela
+        df_new = pd.DataFrame(grid_response["data"])
+        if "valor_apostado" in df_new.columns:
+            df_new = df_new.drop(columns=["valor_apostado"])
+        if not df_new.equals(st.session_state["historico_df"]):
+            st.session_state["historico_df"] = df_new
+            salvar_historico(df_new)
 
-        # Métricas e análise
-        df_hist_resultado = st.session_state["historico_apostas_df"]
-        if "valor_apostado" in df_hist_resultado.columns:
-            df_hist_resultado = df_hist_resultado.drop(columns=["valor_apostado"])
+        # Métricas e gráficos
+        df_valid = st.session_state["historico_df"]
+        df_valid = df_valid[df_valid["resultado"].str.strip() != ""].copy()
 
-        df_hist_resultado = df_hist_resultado[
-            df_hist_resultado["resultado"].notna() & (df_hist_resultado["resultado"].str.strip() != "")
-        ].copy()
+        df_valid["stake"] = pd.to_numeric(df_valid["stake"], errors='coerce').fillna(0)
+        df_valid["odd"] = pd.to_numeric(df_valid["odd"], errors='coerce').fillna(0)
 
-        df_hist_resultado["stake"] = pd.to_numeric(df_hist_resultado["stake"], errors="coerce").fillna(0)
-        df_hist_resultado["odd"] = pd.to_numeric(df_hist_resultado["odd"], errors="coerce").fillna(0)
-
-        def calcular_retorno(row):
+        def calc_return(row):
             if row["resultado"] == "ganhou":
                 return row["stake"] * row["odd"]
             elif row["resultado"] == "cashout":
@@ -903,59 +896,42 @@ with tab_hist:
             else:
                 return 0
 
-        num_apostas = len(df_hist_resultado)
-        apostas_ganhas = (df_hist_resultado["resultado"] == "ganhou").sum()
-        apostas_perdidas = (df_hist_resultado["resultado"] == "perdeu").sum()
-        montante_investido = df_hist_resultado["stake"].sum()
-        montante_ganho = df_hist_resultado.apply(calcular_retorno, axis=1).sum()
-        yield_percent = ((montante_ganho - montante_investido) / montante_investido * 100) if montante_investido > 0 else 0.0
+        n_bets = len(df_valid)
+        wins = (df_valid["resultado"] == "ganhou").sum()
+        losses = (df_valid["resultado"] == "perdeu").sum()
+        investment = df_valid["stake"].sum()
+        total_return = df_valid.apply(calc_return, axis=1).sum()
+        yield_pct = ((total_return - investment) / investment * 100) if investment > 0 else 0
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Número de Apostas", num_apostas)
-            st.metric("Apostas Ganhas", apostas_ganhas)
-            st.metric("Apostas Perdidas", apostas_perdidas)
-        with col2:
-            st.metric("Montante Investido (€)", f"€{montante_investido:.2f}")
-            st.metric("Montante Ganho (€)", f"€{montante_ganho:.2f}")
-        with col3:
-            st.metric("Yield (%)", f"{yield_percent:.2f}%")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Apostas", n_bets)
+        c1.metric("Ganhas", wins)
+        c1.metric("Perdidas", losses)
+        c2.metric("Investido (€)", f"€{investment:.2f}")
+        c2.metric("Recebido (€)", f"€{total_return:.2f}")
+        c3.metric("Yield (%)", f"{yield_pct:.2f}%")
 
-        df_lucro = df_hist_resultado.copy()
-        if not df_lucro.empty:
-            def calc_lucro(row):
-                if row["resultado"] == "ganhou":
-                    return row["stake"] * row["odd"] - row["stake"]
-                elif row["resultado"] == "cashout":
-                    return row["stake"] * 0.5 - row["stake"]
-                else:
-                    return -row["stake"]
+        # Gráfico de lucro acumulado
+        if not df_valid.empty:
+            df_valid["lucro"] = df_valid.apply(lambda r: r["stake"] * (r["odd"] - 1) if r["resultado"] == "ganhou"
+                                              else r["stake"] * -1 if r["resultado"] == "perdeu"
+                                              else r["stake"] * -0.5 if r["resultado"] == "cashout"
+                                              else 0, axis=1)
+            df_valid["ano_mes"] = pd.to_datetime(df_valid["data"], errors='coerce').dt.to_period('M')
+            lucros_mensais = df_valid.groupby(["ano_mes", "competicao"])["lucro"].sum().unstack(fill_value=0)
+            lucros_mensais["Total"] = lucros_mensais.sum(axis=1)
+            acum = lucros_mensais.cumsum()
 
-            df_lucro["lucro"] = df_lucro.apply(calc_lucro, axis=1)
-            df_lucro["ano_mes"] = pd.to_datetime(df_lucro["data"], errors="coerce").dt.strftime('%Y-%m')
-            df_lucro = df_lucro[df_lucro["ano_mes"].notna()]
-
-            grupo = df_lucro.groupby(["ano_mes", "competicao"])["lucro"].sum().reset_index()
-            tabela = grupo.pivot(index="ano_mes", columns="competicao", values="lucro").fillna(0).sort_index()
-
-            if "ATP" not in tabela.columns:
-                tabela["ATP"] = 0
-            if "WTA" not in tabela.columns:
-                tabela["WTA"] = 0
-
-            tabela["ATP_acum"] = tabela["ATP"].cumsum()
-            tabela["WTA_acum"] = tabela["WTA"].cumsum()
-
-            fig, ax = plt.subplots(figsize=(8, 4))
-            tabela[["ATP_acum", "WTA_acum"]].plot(ax=ax)
-            ax.set_title("Lucro Acumulado por Mês (ATP / WTA)")
-            ax.set_ylabel("Lucro acumulado (€)")
-            ax.set_xlabel("Ano-Mês")
-            ax.legend(["ATP", "WTA"])
+            fig, ax = plt.subplots(figsize=(10, 5))
+            acum.drop(columns="Total").plot(ax=ax)
+            ax.set_title("Lucro Acumulado Mensal por Competição")
+            ax.set_ylabel("Lucro (€)")
+            ax.set_xlabel("Mês")
             plt.xticks(rotation=45)
+            ax.legend(title="Competição")
             st.pyplot(fig)
         else:
-            st.info("Ainda não há dados suficientes para gerar o gráfico de lucro acumulado por mês.")
+            st.info("Dados insuficientes para gráfico de lucro acumulado.")
 
     st.divider()
-    st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
+    st.caption("Fontes: tennisexplorer.com e tennisabstract.com — App experimental")
