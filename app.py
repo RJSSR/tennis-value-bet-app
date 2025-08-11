@@ -755,7 +755,7 @@ with tab_hist:
         csv_str = st.session_state["historico_apostas_df"].to_csv(index=False)
         b64_csv = base64.b64encode(csv_str.encode()).decode()
 
-        # CSS e elementos HTML para ícones de import e export que aparecem no hover
+        # CSS e HTML para ícones de import e export que aparecem no hover
         st.markdown(f"""
         <style>
         .table-wrap {{ position: relative; }}
@@ -787,7 +787,7 @@ with tab_hist:
             </div>
         """, unsafe_allow_html=True)
 
-        # File uploader funcional com Streamlit (oculto, acionado pelo label)
+        # Uploader oculto do Streamlit (ativado pelo label acima)
         uploaded_file = st.file_uploader("", type="csv", label_visibility="collapsed", key="file_upload_hidden")
 
         if uploaded_file is not None:
@@ -803,16 +803,15 @@ with tab_hist:
                         st.session_state["historico_apostas_df"] = pd.concat([st.session_state["historico_apostas_df"], df_upload], ignore_index=True)
                     salvar_historico(st.session_state["historico_apostas_df"])
                     st.success("Histórico importado com sucesso ✅")
-                    st.rerun()
+                    st.experimental_rerun()
             except Exception as e:
                 st.error(f"Erro ao importar CSV: {e}")
 
-        # Preparar a tabela
+        # Preparar a tabela para visualização e edição
         df_hist = st.session_state["historico_apostas_df"].copy().fillna("").reset_index(drop=True)
         if "valor_apostado" in df_hist.columns:
             df_hist = df_hist.drop(columns=["valor_apostado"])
 
-        # Setup AgGrid para edição e seleção
         resultados_validos = ["", "ganhou", "perdeu", "cashout"]
         gb = GridOptionsBuilder.from_dataframe(df_hist)
         gb.configure_column("resultado", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": resultados_validos})
@@ -829,9 +828,8 @@ with tab_hist:
             theme="fresh",
         )
 
-        st.markdown("</div>", unsafe_allow_html=True)  # fechar div .table-wrap
+        st.markdown("</div>", unsafe_allow_html=True)  # fechar container
 
-        # Processar apostas selecionadas para remoção
         selected_raw = getattr(response, "selected_rows", None)
         if selected_raw is None:
             selected = []
@@ -870,9 +868,9 @@ with tab_hist:
                 st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
                 salvar_historico(st.session_state["historico_apostas_df"])
                 st.success("Aposta(s) removida(s) com sucesso.")
-                st.rerun()
+                st.experimental_rerun()
 
-        # Sincronizar edição direta na tabela
+        # Sincroniza edição direta na tabela
         if hasattr(response, "data") and response.data is not None:
             df_updated = pd.DataFrame(response.data)
             if "remove" in df_updated.columns:
@@ -885,7 +883,7 @@ with tab_hist:
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(df_updated)
 
-        # Cálculo de métricas e gráfico de lucros
+        # Métricas e análise
         df_hist_resultado = st.session_state["historico_apostas_df"]
         if "valor_apostado" in df_hist_resultado.columns:
             df_hist_resultado = df_hist_resultado.drop(columns=["valor_apostado"])
