@@ -764,14 +764,14 @@ with tab_auto:
                             st.rerun()
 
 ### --- ABA HISTÓRICO ---
-with tab_hist:
-    # Garantir que existe uma coluna 'id' única para cada aposta
-    if "id" not in st.session_state["historico_apostas_df"].columns:
-        st.session_state["historico_apostas_df"]["id"] = range(len(st.session_state["historico_apostas_df"]))
+def salvar_historico(df):
+    # Implementa aqui a lógica para salvar o DataFrame (exemplo: CSV local)
+    df.to_csv("historico_apostas.csv", index=False)
 
+with tab_hist:
     # Exportar histórico
     st.subheader("📤 Exportar Histórico")
-    if not st.session_state["historico_apostas_df"].empty:
+    if "historico_apostas_df" in st.session_state and not st.session_state["historico_apostas_df"].empty:
         csv_export = st.session_state["historico_apostas_df"].to_csv(index=False).encode("utf-8")
         st.download_button(
             label="💾 Download histórico CSV",
@@ -790,35 +790,29 @@ with tab_hist:
                 df_importado["data"] = df_importado["data"].astype(str)
             if "valor_apostado" in df_importado.columns:
                 df_importado = df_importado.drop(columns=["valor_apostado"])
-
-            # Garantir coluna 'id' no df importado
-            if "id" not in df_importado.columns:
-                df_importado["id"] = range(len(df_importado))
-
             opcao = st.radio(
                 "Como importar?",
                 ("Substituir histórico atual", "Adicionar ao histórico atual")
             )
             if st.button("📥 Importar agora"):
                 if opcao == "Substituir histórico atual":
-                    st.session_state["historico_apostas_df"] = df_importado.reset_index(drop=True)
+                    st.session_state["historico_apostas_df"] = df_importado
                 else:
-                    # Ajustar IDs para evitar duplicados
-                    max_id = st.session_state["historico_apostas_df"]["id"].max() if not st.session_state["historico_apostas_df"].empty else -1
-                    df_importado["id"] += max_id + 1
-                    st.session_state["historico_apostas_df"] = pd.concat(
-                        [st.session_state["historico_apostas_df"], df_importado],
-                        ignore_index=True
-                    ).reset_index(drop=True)
-
+                    if "historico_apostas_df" in st.session_state:
+                        st.session_state["historico_apostas_df"] = pd.concat(
+                            [st.session_state["historico_apostas_df"], df_importado],
+                            ignore_index=True
+                        )
+                    else:
+                        st.session_state["historico_apostas_df"] = df_importado
                 salvar_historico(st.session_state["historico_apostas_df"])
                 st.success("Histórico importado com sucesso ✅")
                 st.rerun()
         except Exception as e:
             st.error(f"Erro ao importar CSV: {e}")
 
-    # Mostrar histórico
-    if st.session_state["historico_apostas_df"].empty:
+    # Mostrar histórico ou mensagem se vazio
+    if "historico_apostas_df" not in st.session_state or st.session_state["historico_apostas_df"].empty:
         st.info("Nenhuma aposta registrada.")
     else:
         st.subheader("📜 Histórico de Apostas")
@@ -831,7 +825,7 @@ with tab_hist:
                 st.success("Histórico limpo com sucesso.")
                 st.rerun()
 
-        # Preparar DataFrame para AgGrid (remover coluna 'valor_apostado' se existir)
+        # Preparar DataFrame para AgGrid
         df_hist = st.session_state["historico_apostas_df"].copy().fillna("").reset_index(drop=True)
         if "valor_apostado" in df_hist.columns:
             df_hist = df_hist.drop(columns=["valor_apostado"])
@@ -852,49 +846,58 @@ with tab_hist:
             theme="fresh",
         )
 
-        selected = response.get("selected_rows", [])
-        if not isinstance(selected, list):
+        selected_raw = getattr(response, "selected_rows", None)
+        if selected_raw is None:
             selected = []
+        elif hasattr(selected_raw, "to_dict"):
+            selected = selected_raw.to_dict(orient="records")
+        else:
+            selected = selected_raw
 
         st.write(f"Apostas selecionadas: {len(selected)}")
 
-        # Controle de confirmação da remoção
-        if "confirmar_remocao" not in st.session_state:
-            st.session_state["confirmar_remocao"] = False
-
-        st.session_state["confirmar_remocao"] = st.checkbox("✅ Confirmar remoção permanente", value=st.session_state["confirmar_remocao"])
-
-        if st.button("❌ Remover aposta(s) selecionada(s)"):
+        # Remover apostas selecionadas com confirmação
+        if st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
             if len(selected) == 0:
                 st.warning("Nenhuma aposta foi selecionada.")
-            elif not st.session_state["confirmar_remocao"]:
-                st.warning("Por favor, confirme a remoção com o checkbox.")
             else:
-                df = st.session_state["historico_apostas_df"].copy().reset_index(drop=True)
-                if "valor_apostado" in df.columns:
-                    df = df.drop(columns=["valor_apostado"])
+                if st.checkbox("✅ Confirmar remoção permanente"):
+                    df = st.session_state["historico_apostas_df"].copy().reset_index(drop=True)
+                    if "valor_apostado" in df.columns:
+                        df = df.drop(columns=["valor_apostado"])
+                    for data in selected:
+                        if not isinstance(data, dict):
+                            st.warning(f"Dado inesperado em 'selected_rows': {data} (tipo: {type(data)})")
+                            continue
 
-                # Obter ids das apostas selecionadas para remover
-                ids_para_remover = [item.get("id") for item in selected if isinstance(item, dict) and "id" in item]
-                df = df[~df["id"].isin(ids_para_remover)].reset_index(drop=True)
+                        cond = (df["data"].astype(str).str.strip() == str(data.get("data", "")).strip())
+                        cond &= (df["evento"] == data.get("evento", ""))
+                        cond &= (df["aposta"] == data.get("aposta", ""))
+                        try:
+                            data_odd = float(data.get("odd", 0))
+                            cond &= (abs(df["odd"].astype(float) - data_odd) < 1e-9)
+                        except Exception:
+                            cond &= False
 
-                st.session_state["historico_apostas_df"] = df
-                salvar_historico(df)
-                st.success("Aposta(s) removida(s) com sucesso.")
-                st.session_state["confirmar_remocao"] = False
-                st.rerun()
+                        indices = df[cond].index
+                        if not indices.empty:
+                            df = df.drop(indices)
+
+                    st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
+                    salvar_historico(st.session_state["historico_apostas_df"])
+                    st.success("Aposta(s) removida(s) com sucesso.")
+                    st.rerun()
 
         # Atualizar histórico ao editar na grid
         if "data" in response and response["data"] is not None:
             df_updated = pd.DataFrame(response["data"])
+            if "remove" in df_updated.columns:
+                df_updated = df_updated.drop(columns=["remove"])
             if "valor_apostado" in df_updated.columns:
                 df_updated = df_updated.drop(columns=["valor_apostado"])
-
-            # Garantir que 'id' se mantém
-            if "id" not in df_updated.columns:
-                df_updated["id"] = range(len(df_updated))
-
-            if not df_updated.equals(st.session_state["historico_apostas_df"]):
+            df_hist_str = st.session_state["historico_apostas_df"].astype(str)
+            df_updated_str = df_updated.astype(str)
+            if not df_updated_str.equals(df_hist_str):
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(df_updated)
 
@@ -966,4 +969,3 @@ with tab_hist:
 
     st.divider()
     st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
-
