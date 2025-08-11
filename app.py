@@ -768,8 +768,12 @@ with tab_auto:
 
 ### --- ABA HISTÓRICO ---
 def salvar_historico(df):
-    # Implementa aqui a lógica para salvar o DataFrame, ex:
-    df.to_csv("historico_apostas.csv", index=False)
+    caminho = "historico_apostas.csv"
+    try:
+        df.to_csv(caminho, index=False)
+        st.success(f"Ficheiro guardado com sucesso em: {caminho}")
+    except Exception as e:
+        st.error(f"Erro ao guardar ficheiro: {e}")
 
 with tab_hist:
     # Exportar histórico
