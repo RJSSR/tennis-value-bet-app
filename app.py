@@ -959,4 +959,3 @@ with tab_hist:
 
     st.divider()
     st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
-
