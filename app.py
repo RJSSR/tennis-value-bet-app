@@ -747,16 +747,23 @@ with tab_auto:
 
 ### --- ABA HISTÓRICO ---
 with tab_hist:
+
+    # Botão manual para gravar imediatamente
+    if st.button("💾 Gravar histórico agora"):
+        salvar_historico(st.session_state["historico_apostas_df"])
+        st.success("Histórico gravado com sucesso ✅")
+
     # Exportar histórico
     st.subheader("📤 Exportar Histórico")
     if not st.session_state["historico_apostas_df"].empty:
         csv_export = st.session_state["historico_apostas_df"].to_csv(index=False).encode("utf-8")
         st.download_button(
-            label="💾 Download histórico CSV",
+            label="⬇️ Download histórico CSV",
             data=csv_export,
             file_name="historico_apostas.csv",
             mime="text/csv"
         )
+
     # Importar histórico
     st.subheader("📥 Importar Histórico")
     uploaded_file = st.file_uploader("Selecionar ficheiro CSV", type="csv")
@@ -765,7 +772,6 @@ with tab_hist:
             df_importado = pd.read_csv(uploaded_file)
             if "data" in df_importado.columns:
                 df_importado["data"] = df_importado["data"].astype(str)
-            # Remover coluna antiga se existir
             if "valor_apostado" in df_importado.columns:
                 df_importado = df_importado.drop(columns=["valor_apostado"])
             opcao = st.radio(
@@ -786,15 +792,18 @@ with tab_hist:
         except Exception as e:
             st.error(f"Erro ao importar CSV: {e}")
 
+    # Tabela do histórico
     if "historico_apostas_df" not in st.session_state or st.session_state["historico_apostas_df"].empty:
         st.info("Nenhuma aposta registrada.")
     else:
         df_hist = st.session_state["historico_apostas_df"].copy().fillna("").reset_index(drop=True)
         if "valor_apostado" in df_hist.columns:
             df_hist = df_hist.drop(columns=["valor_apostado"])
+
         resultados_validos = ["", "ganhou", "perdeu", "cashout"]
         gb = GridOptionsBuilder.from_dataframe(df_hist)
-        gb.configure_column("resultado", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": resultados_validos})
+        gb.configure_column("resultado", editable=True, cellEditor="agSelectCellEditor",
+                            cellEditorParams={"values": resultados_validos})
         gb.configure_selection(selection_mode="multiple", use_checkbox=True, groupSelectsChildren=True)
         grid_options = gb.build()
 
@@ -808,6 +817,7 @@ with tab_hist:
             theme="fresh",
         )
 
+        # Remover apostas selecionadas
         selected_raw = getattr(response, "selected_rows", None)
         if selected_raw is None:
             selected = []
@@ -825,9 +835,9 @@ with tab_hist:
                 df = st.session_state["historico_apostas_df"].copy().reset_index(drop=True)
                 if "valor_apostado" in df.columns:
                     df = df.drop(columns=["valor_apostado"])
+
                 for data in selected:
                     if not isinstance(data, dict):
-                        st.warning(f"Dado inesperado em 'selected_rows': {data} (tipo: {type(data)})")
                         continue
 
                     cond = (df["data"].astype(str).str.strip() == str(data.get("data", "")).strip())
@@ -848,22 +858,23 @@ with tab_hist:
                 st.success("Aposta(s) removida(s) com sucesso.")
                 st.rerun()
 
+        # Gravar sempre que houver alteração na tabela
         if hasattr(response, "data") and response.data is not None:
             df_updated = pd.DataFrame(response.data)
             if "remove" in df_updated.columns:
                 df_updated = df_updated.drop(columns=["remove"])
             if "valor_apostado" in df_updated.columns:
                 df_updated = df_updated.drop(columns=["valor_apostado"])
-            df_hist_str = st.session_state["historico_apostas_df"].astype(str)
-            df_updated_str = df_updated.astype(str)
-            if not df_updated_str.equals(df_hist_str):
+
+            if not df_updated.equals(st.session_state["historico_apostas_df"]):
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(df_updated)
 
-        # Métricas e análise
+        # Métricas e Análise de desempenho
         df_hist_resultado = st.session_state["historico_apostas_df"]
         if "valor_apostado" in df_hist_resultado.columns:
             df_hist_resultado = df_hist_resultado.drop(columns=["valor_apostado"])
+
         df_hist_resultado = df_hist_resultado[
             df_hist_resultado["resultado"].notna() & (df_hist_resultado["resultado"].str.strip() != "")
         ].copy()
@@ -897,6 +908,7 @@ with tab_hist:
         with col3:
             st.metric("Yield (%)", f"{yield_percent:.2f}%")
 
+        # Gráfico de lucro acumulado
         df_lucro = df_hist_resultado.copy()
         if not df_lucro.empty:
             def calc_lucro(row):
@@ -935,3 +947,4 @@ with tab_hist:
 
     st.divider()
     st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
+
