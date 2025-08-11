@@ -749,9 +749,8 @@ with tab_hist:
     if st.session_state["historico_apostas_df"].empty:
         st.info("Nenhuma aposta registrada.")
     else:
-        # --------- Barra discreta de Importar/Exportar ---------
+        # Barra discreta para exportar/importar
         col_exp, col_imp, _ = st.columns([1, 1, 6])
-
         with col_exp:
             csv_export = st.session_state["historico_apostas_df"].to_csv(index=False).encode("utf-8")
             st.download_button(
@@ -761,33 +760,39 @@ with tab_hist:
                 mime="text/csv",
                 help="Download histórico como CSV"
             )
-
         with col_imp:
-            upload = st.file_uploader("", type="csv", label_visibility="collapsed")
-            if upload is not None:
+            uploaded = st.file_uploader("", type="csv", label_visibility="collapsed")
+            if uploaded is not None:
                 try:
-                    df_imp = pd.read_csv(upload)
-                    if "valor_apostado" in df_imp.columns:
-                        df_imp.drop(columns=["valor_apostado"], inplace=True)
-                    opc = st.radio(
-                        "Modo", ("Acrescentar", "Substituir"), horizontal=True, index=0, key="op_import"
+                    df_importado = pd.read_csv(uploaded)
+                    if "valor_apostado" in df_importado.columns:
+                        df_importado = df_importado.drop(columns=["valor_apostado"])
+                    opcao = st.radio(
+                        "Modo",
+                        ("Acrescentar", "Substituir"),
+                        horizontal=True,
+                        index=0,
+                        key="op_import"
                     )
                     if st.button("Importar", key="btn_importar"):
-                        if opc == "Substituir":
-                            st.session_state["historico_apostas_df"] = df_imp
+                        if opcao == "Substituir":
+                            st.session_state["historico_apostas_df"] = df_importado
                         else:
                             st.session_state["historico_apostas_df"] = pd.concat(
-                                [st.session_state["historico_apostas_df"], df_imp], ignore_index=True)
+                                [st.session_state["historico_apostas_df"], df_importado],
+                                ignore_index=True
+                            )
                         salvar_historico(st.session_state["historico_apostas_df"])
                         st.success("Histórico importado com sucesso ✅")
                         st.rerun()
                 except Exception as e:
                     st.error(f"Erro ao importar CSV: {e}")
 
-        # --------- Aqui começa (como antes) o rendering da tabela -----------
+        # Renderização da tabela e funcionalidades
         df_hist = st.session_state["historico_apostas_df"].copy().fillna("").reset_index(drop=True)
         if "valor_apostado" in df_hist.columns:
             df_hist = df_hist.drop(columns=["valor_apostado"])
+
         resultados_validos = ["", "ganhou", "perdeu", "cashout"]
         gb = GridOptionsBuilder.from_dataframe(df_hist)
         gb.configure_column("resultado", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": resultados_validos})
@@ -844,6 +849,7 @@ with tab_hist:
                 st.success("Aposta(s) removida(s) com sucesso.")
                 st.rerun()
 
+        # Sincronizar edição direta da tabela
         if hasattr(response, "data") and response.data is not None:
             df_updated = pd.DataFrame(response.data)
             if "remove" in df_updated.columns:
@@ -855,10 +861,12 @@ with tab_hist:
             if not df_updated_str.equals(df_hist_str):
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(df_updated)
-        # Métricas e análise
+
+        # Cálculo de métricas e gráfico
         df_hist_resultado = st.session_state["historico_apostas_df"]
         if "valor_apostado" in df_hist_resultado.columns:
             df_hist_resultado = df_hist_resultado.drop(columns=["valor_apostado"])
+
         df_hist_resultado = df_hist_resultado[
             df_hist_resultado["resultado"].notna() & (df_hist_resultado["resultado"].str.strip() != "")
         ].copy()
