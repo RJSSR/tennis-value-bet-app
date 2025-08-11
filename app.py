@@ -278,25 +278,34 @@ def elo_por_superficie(df_jogador, superficie_en):
         return float(df_jogador.get("Elo", 1500))
 
 def carregar_historico():
-    if os.path.exists(HISTORICO_CSV):
+    if os.path.exists(CSV_PATH):
         try:
-            df = pd.read_csv(HISTORICO_CSV)
+            df = pd.read_csv(CSV_PATH)
+            # Garantir que a coluna "data" é string para evitar erros
             if "data" in df.columns:
                 df["data"] = df["data"].astype(str)
+            # Remover coluna extra se existir
             if "valor_apostado" in df.columns:
                 df = df.drop(columns=["valor_apostado"])
             return df
-        except:
+        except Exception as e:
+            st.error(f"Erro ao carregar histórico: {e}")
             return pd.DataFrame()
-    return pd.DataFrame()
+    else:
+        return pd.DataFrame()
 
 def salvar_historico(df):
-    caminho = "historico_apostas.csv"
-    df.to_csv(caminho, index=False)
-    if os.path.exists(caminho):
-        st.success(f"Ficheiro guardado com sucesso em: {caminho}")
-    else:
-        st.error("Erro: ficheiro NÃO foi guardado.")
+    try:
+        df.to_csv(CSV_PATH, index=False)
+        if os.path.exists(CSV_PATH):
+            st.success(f"Ficheiro guardado com sucesso em: {CSV_PATH}")
+            st.info(f"Tamanho do ficheiro: {os.path.getsize(CSV_PATH)} bytes")
+            with open(CSV_PATH, "r", encoding="utf-8") as f:
+                st.code(f.read(), language="csv")
+        else:
+            st.error("Erro: ficheiro não foi encontrado após guardar.")
+    except Exception as e:
+        st.error(f"Erro ao salvar histórico: {e}")
 
 def calcular_retorno(aposta):
     resultado = aposta.get("resultado", "")
@@ -308,25 +317,6 @@ def calcular_retorno(aposta):
         return valor * 0.5
     else:
         return 0.0
-
-# --- Streamlit app ---
-# Função para carregar histórico
-def carregar_historico():
-    if os.path.exists(CSV_PATH):
-        try:
-            return pd.read_csv(CSV_PATH)
-        except Exception as e:
-            st.error(f"Erro ao carregar histórico: {e}")
-            return pd.DataFrame()
-    else:
-        return pd.DataFrame()
-
-# Função para salvar histórico
-def salvar_historico(df):
-    try:
-        df.to_csv(CSV_PATH, index=False)
-    except Exception as e:
-        st.error(f"Erro ao salvar histórico: {e}")
 
 # Inicializar histórico
 if "historico_apostas_df" not in st.session_state:
@@ -767,18 +757,9 @@ with tab_auto:
                             st.rerun()
 
 ### --- ABA HISTÓRICO ---
-def salvar_historico(df):
-    caminho = "historico_apostas.csv"
-    try:
-        df.to_csv(caminho, index=False)
-        st.success(f"Ficheiro guardado com sucesso em: {caminho}")
-    except Exception as e:
-        st.error(f"Erro ao guardar ficheiro: {e}")
-
-with tab_hist:
-    # Exportar histórico
+with st.container():  # substitui "tab_hist" se estiveres dentro de tabs, só adapta o contexto
     st.subheader("📤 Exportar Histórico")
-    if "historico_apostas_df" in st.session_state and not st.session_state["historico_apostas_df"].empty:
+    if not st.session_state["historico_apostas_df"].empty:
         csv_export = st.session_state["historico_apostas_df"].to_csv(index=False).encode("utf-8")
         st.download_button(
             label="💾 Download histórico CSV",
@@ -787,7 +768,6 @@ with tab_hist:
             mime="text/csv"
         )
 
-    # Importar histórico
     st.subheader("📥 Importar Histórico")
     uploaded_file = st.file_uploader("Selecionar ficheiro CSV", type="csv")
     if uploaded_file is not None:
@@ -805,31 +785,29 @@ with tab_hist:
                 if opcao == "Substituir histórico atual":
                     st.session_state["historico_apostas_df"] = df_importado
                 else:
-                    if "historico_apostas_df" in st.session_state:
-                        st.session_state["historico_apostas_df"] = pd.concat(
-                            [st.session_state["historico_apostas_df"], df_importado],
-                            ignore_index=True
-                        )
-                    else:
-                        st.session_state["historico_apostas_df"] = df_importado
+                    st.session_state["historico_apostas_df"] = pd.concat(
+                        [st.session_state["historico_apostas_df"], df_importado],
+                        ignore_index=True
+                    )
                 salvar_historico(st.session_state["historico_apostas_df"])
                 st.success("Histórico importado com sucesso ✅")
-                st.rerun()
+                st.experimental_rerun()
         except Exception as e:
             st.error(f"Erro ao importar CSV: {e}")
 
-    # Mostrar histórico ou mensagem se vazio
-    if "historico_apostas_df" not in st.session_state or st.session_state["historico_apostas_df"].empty:
+    st.divider()
+
+    if st.session_state["historico_apostas_df"].empty:
         st.info("Nenhuma aposta registrada.")
     else:
         st.subheader("📜 Histórico de Apostas")
 
-        # Botão para limpar histórico (sem confirmação)
+        # Limpar histórico sem confirmação extra
         if st.button("🗑️ Limpar Histórico Completo"):
             st.session_state["historico_apostas_df"] = pd.DataFrame(columns=st.session_state["historico_apostas_df"].columns)
             salvar_historico(st.session_state["historico_apostas_df"])
             st.success("Histórico limpo com sucesso.")
-            st.rerun()
+            st.experimental_rerun()
 
         # Preparar DataFrame para AgGrid
         df_hist = st.session_state["historico_apostas_df"].copy().fillna("").reset_index(drop=True)
@@ -852,18 +830,13 @@ with tab_hist:
             theme="fresh",
         )
 
-        selected_raw = getattr(response, "selected_rows", None)
-        if selected_raw is None:
-            selected = []
-        elif hasattr(selected_raw, "to_dict"):
-            selected = selected_raw.to_dict(orient="records")
-        else:
-            selected = selected_raw
+        selected_raw = response.get("selected_rows", [])
+        selected = selected_raw if isinstance(selected_raw, list) else []
 
         st.write(f"Apostas selecionadas: {len(selected)}")
 
-        # Remover apostas selecionadas (sem confirmação)
-        if st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
+        # Remover apostas selecionadas sem confirmações
+        if st.button("❌ Remover aposta(s) selecionada(s)"):
             if len(selected) == 0:
                 st.warning("Nenhuma aposta foi selecionada.")
             else:
@@ -891,7 +864,7 @@ with tab_hist:
                 st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
                 salvar_historico(st.session_state["historico_apostas_df"])
                 st.success("Aposta(s) removida(s) com sucesso.")
-                st.rerun()
+                st.experimental_rerun()
 
         # Atualizar histórico ao editar na grid
         if "data" in response and response["data"] is not None:
