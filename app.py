@@ -825,7 +825,12 @@ with tab_hist:
 
         resultados_validos = ["", "ganhou", "perdeu", "cashout"]
         gb = GridOptionsBuilder.from_dataframe(df_hist)
-        gb.configure_column("resultado", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": resultados_validos})
+        gb.configure_column(
+            "resultado",
+            editable=True,
+            cellEditor="agSelectCellEditor",
+            cellEditorParams={"values": resultados_validos}
+        )
         gb.configure_selection(selection_mode="multiple", use_checkbox=True, groupSelectsChildren=True)
         grid_options = gb.build()
 
@@ -839,39 +844,44 @@ with tab_hist:
             theme="fresh",
         )
 
-        selected = response.get("selected_rows", []) or []
+        # Garantir que selected é lista
+        selected = response.get("selected_rows", [])
+        if not isinstance(selected, list):
+            selected = []
+
         st.write(f"Apostas selecionadas: {len(selected)}")
 
         # Remover apostas selecionadas com confirmação
         if st.button("❌ Remover aposta(s) selecionada(s)"):
             if len(selected) == 0:
                 st.warning("Nenhuma aposta foi selecionada.")
-            elif st.checkbox("✅ Confirmar remoção permanente"):
-                df = st.session_state["historico_apostas_df"].copy().reset_index(drop=True)
-                if "valor_apostado" in df.columns:
-                    df = df.drop(columns=["valor_apostado"])
-                df["odd"] = pd.to_numeric(df["odd"], errors="coerce").round(3)
+            else:
+                if st.checkbox("✅ Confirmar remoção permanente"):
+                    df = st.session_state["historico_apostas_df"].copy().reset_index(drop=True)
+                    if "valor_apostado" in df.columns:
+                        df = df.drop(columns=["valor_apostado"])
+                    df["odd"] = pd.to_numeric(df["odd"], errors="coerce").round(3)
 
-                for data in selected:
-                    if not isinstance(data, dict):
-                        continue
-                    cond = (
-                        (df["data"].astype(str).str.strip() == str(data.get("data", "")).strip()) &
-                        (df["evento"] == data.get("evento", "")) &
-                        (df["aposta"] == data.get("aposta", ""))
-                    )
-                    try:
-                        data_odd = round(float(data.get("odd", 0)), 3)
-                        cond &= (df["odd"] == data_odd)
-                    except Exception:
-                        cond &= False
+                    for data in selected:
+                        if not isinstance(data, dict):
+                            continue
+                        cond = (
+                            (df["data"].astype(str).str.strip() == str(data.get("data", "")).strip()) &
+                            (df["evento"] == data.get("evento", "")) &
+                            (df["aposta"] == data.get("aposta", ""))
+                        )
+                        try:
+                            data_odd = round(float(data.get("odd", 0)), 3)
+                            cond &= (df["odd"] == data_odd)
+                        except Exception:
+                            cond &= False
 
-                    df = df[~cond]
+                        df = df[~cond]
 
-                st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
-                salvar_historico(st.session_state["historico_apostas_df"])
-                st.success("Aposta(s) removida(s) com sucesso.")
-                st.rerun()
+                    st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
+                    salvar_historico(st.session_state["historico_apostas_df"])
+                    st.success("Aposta(s) removida(s) com sucesso.")
+                    st.rerun()
 
         # Atualizar histórico ao editar na grid
         if "data" in response and response["data"] is not None:
@@ -950,4 +960,5 @@ with tab_hist:
 
     st.divider()
     st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
+
 
