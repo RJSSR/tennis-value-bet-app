@@ -746,48 +746,45 @@ with tab_auto:
 
 ### --- ABA HISTÓRICO ---
 with tab_hist:
-    # Exportar histórico
-    st.subheader("📤 Exportar Histórico")
-    if not st.session_state["historico_apostas_df"].empty:
-        csv_export = st.session_state["historico_apostas_df"].to_csv(index=False).encode("utf-8")
-        st.download_button(
-            label="💾 Download histórico CSV",
-            data=csv_export,
-            file_name="historico_apostas.csv",
-            mime="text/csv"
-        )
-    # Importar histórico
-    st.subheader("📥 Importar Histórico")
-    uploaded_file = st.file_uploader("Selecionar ficheiro CSV", type="csv")
-    if uploaded_file is not None:
-        try:
-            df_importado = pd.read_csv(uploaded_file)
-            if "data" in df_importado.columns:
-                df_importado["data"] = df_importado["data"].astype(str)
-            # Remover coluna antiga se existir
-            if "valor_apostado" in df_importado.columns:
-                df_importado = df_importado.drop(columns=["valor_apostado"])
-            opcao = st.radio(
-                "Como importar?",
-                ("Substituir histórico atual", "Adicionar ao histórico atual")
-            )
-            if st.button("Importar agora"):
-                if opcao == "Substituir histórico atual":
-                    st.session_state["historico_apostas_df"] = df_importado
-                else:
-                    st.session_state["historico_apostas_df"] = pd.concat(
-                        [st.session_state["historico_apostas_df"], df_importado],
-                        ignore_index=True
-                    )
-                salvar_historico(st.session_state["historico_apostas_df"])
-                st.success("Histórico importado com sucesso ✅")
-                st.rerun()
-        except Exception as e:
-            st.error(f"Erro ao importar CSV: {e}")
-
-    if "historico_apostas_df" not in st.session_state or st.session_state["historico_apostas_df"].empty:
+    if st.session_state["historico_apostas_df"].empty:
         st.info("Nenhuma aposta registrada.")
     else:
+        # --------- Barra discreta de Importar/Exportar ---------
+        col_exp, col_imp, _ = st.columns([1, 1, 6])
+
+        with col_exp:
+            csv_export = st.session_state["historico_apostas_df"].to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="💾 Exportar",
+                data=csv_export,
+                file_name="historico_apostas.csv",
+                mime="text/csv",
+                help="Download histórico como CSV"
+            )
+
+        with col_imp:
+            upload = st.file_uploader("", type="csv", label_visibility="collapsed")
+            if upload is not None:
+                try:
+                    df_imp = pd.read_csv(upload)
+                    if "valor_apostado" in df_imp.columns:
+                        df_imp.drop(columns=["valor_apostado"], inplace=True)
+                    opc = st.radio(
+                        "Modo", ("Acrescentar", "Substituir"), horizontal=True, index=0, key="op_import"
+                    )
+                    if st.button("Importar", key="btn_importar"):
+                        if opc == "Substituir":
+                            st.session_state["historico_apostas_df"] = df_imp
+                        else:
+                            st.session_state["historico_apostas_df"] = pd.concat(
+                                [st.session_state["historico_apostas_df"], df_imp], ignore_index=True)
+                        salvar_historico(st.session_state["historico_apostas_df"])
+                        st.success("Histórico importado com sucesso ✅")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao importar CSV: {e}")
+
+        # --------- Aqui começa (como antes) o rendering da tabela -----------
         df_hist = st.session_state["historico_apostas_df"].copy().fillna("").reset_index(drop=True)
         if "valor_apostado" in df_hist.columns:
             df_hist = df_hist.drop(columns=["valor_apostado"])
@@ -858,7 +855,6 @@ with tab_hist:
             if not df_updated_str.equals(df_hist_str):
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(df_updated)
-
         # Métricas e análise
         df_hist_resultado = st.session_state["historico_apostas_df"]
         if "valor_apostado" in df_hist_resultado.columns:
