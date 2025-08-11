@@ -790,7 +790,7 @@ with tab_hist:
                 "Como importar?",
                 ("Substituir histórico atual", "Adicionar ao histórico atual")
             )
-            if st.button("Importar agora"):
+            if st.button("📥 Importar agora"):
                 if opcao == "Substituir histórico atual":
                     st.session_state["historico_apostas_df"] = df_importado
                 else:
@@ -810,15 +810,15 @@ with tab_hist:
     else:
         st.subheader("📜 Histórico de Apostas")
 
-        # Botão para limpar histórico
-        if st.button("🗑️ Limpar Histórico Completo", type="secondary"):
-            st.warning("Tem certeza que deseja limpar TODO o histórico?")
-            if st.checkbox("Confirmar limpeza completa"):
-                st.session_state["historico_apostas_df"] = pd.DataFrame()
+        # Botão para limpar histórico completo com confirmação
+        if st.button("🗑️ Limpar Histórico Completo"):
+            if st.checkbox("✅ Confirmar limpeza completa"):
+                st.session_state["historico_apostas_df"] = pd.DataFrame(columns=st.session_state["historico_apostas_df"].columns)
                 salvar_historico(st.session_state["historico_apostas_df"])
                 st.success("Histórico limpo com sucesso.")
                 st.rerun()
 
+        # Preparar DataFrame para AgGrid
         df_hist = st.session_state["historico_apostas_df"].copy().fillna("").reset_index(drop=True)
         if "valor_apostado" in df_hist.columns:
             df_hist = df_hist.drop(columns=["valor_apostado"])
@@ -839,51 +839,50 @@ with tab_hist:
             theme="fresh",
         )
 
-        # Seleção simplificada
-        selected = response.get("selected_rows", [])
-        selected = selected if isinstance(selected, list) else []
+        selected = response.get("selected_rows", []) or []
         st.write(f"Apostas selecionadas: {len(selected)}")
 
         # Remover apostas selecionadas com confirmação
-        if st.button("❌ Remover aposta(s) selecionada(s)", type="primary"):
+        if st.button("❌ Remover aposta(s) selecionada(s)"):
             if len(selected) == 0:
                 st.warning("Nenhuma aposta foi selecionada.")
-            else:
-                if st.checkbox("Confirmar remoção permanente"):
-                    df = st.session_state["historico_apostas_df"].copy().reset_index(drop=True)
-                    if "valor_apostado" in df.columns:
-                        df = df.drop(columns=["valor_apostado"])
-                    df["odd"] = pd.to_numeric(df["odd"], errors="coerce").round(3)
+            elif st.checkbox("✅ Confirmar remoção permanente"):
+                df = st.session_state["historico_apostas_df"].copy().reset_index(drop=True)
+                if "valor_apostado" in df.columns:
+                    df = df.drop(columns=["valor_apostado"])
+                df["odd"] = pd.to_numeric(df["odd"], errors="coerce").round(3)
 
-                    for data in selected:
-                        if not isinstance(data, dict):
-                            continue
-                        cond = (df["data"].astype(str).str.strip() == str(data.get("data", "")).strip())
-                        cond &= (df["evento"] == data.get("evento", ""))
-                        cond &= (df["aposta"] == data.get("aposta", ""))
-                        try:
-                            data_odd = round(float(data.get("odd", 0)), 3)
-                            cond &= (df["odd"] == data_odd)
-                        except Exception:
-                            cond &= False
+                for data in selected:
+                    if not isinstance(data, dict):
+                        continue
+                    cond = (
+                        (df["data"].astype(str).str.strip() == str(data.get("data", "")).strip()) &
+                        (df["evento"] == data.get("evento", "")) &
+                        (df["aposta"] == data.get("aposta", ""))
+                    )
+                    try:
+                        data_odd = round(float(data.get("odd", 0)), 3)
+                        cond &= (df["odd"] == data_odd)
+                    except Exception:
+                        cond &= False
 
-                        df = df[~cond]
+                    df = df[~cond]
 
-                    st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
-                    salvar_historico(st.session_state["historico_apostas_df"])
-                    st.success("Aposta(s) removida(s) com sucesso.")
-                    st.rerun()
+                st.session_state["historico_apostas_df"] = df.reset_index(drop=True)
+                salvar_historico(st.session_state["historico_apostas_df"])
+                st.success("Aposta(s) removida(s) com sucesso.")
+                st.rerun()
 
-        # Atualizar histórico automaticamente quando houver edição na grid
-        if hasattr(response, "data") and response.data is not None:
-            df_updated = pd.DataFrame(response.data)
+        # Atualizar histórico ao editar na grid
+        if "data" in response and response["data"] is not None:
+            df_updated = pd.DataFrame(response["data"])
             if "valor_apostado" in df_updated.columns:
                 df_updated = df_updated.drop(columns=["valor_apostado"])
             if not df_updated.equals(st.session_state["historico_apostas_df"]):
                 st.session_state["historico_apostas_df"] = df_updated
                 salvar_historico(df_updated)
 
-        # --- Métricas e análise ---
+        # --- Métricas ---
         df_hist_resultado = st.session_state["historico_apostas_df"].copy()
         if "valor_apostado" in df_hist_resultado.columns:
             df_hist_resultado = df_hist_resultado.drop(columns=["valor_apostado"])
@@ -924,7 +923,7 @@ with tab_hist:
             with col3:
                 st.metric("Yield (%)", f"{yield_percent:.2f}%")
 
-            # Gráfico de lucro acumulado
+            # Gráfico lucro acumulado por mês
             df_hist_resultado["ano_mes"] = pd.to_datetime(df_hist_resultado["data"], errors="coerce").dt.strftime('%Y-%m')
             df_hist_resultado = df_hist_resultado[df_hist_resultado["ano_mes"].notna()]
 
@@ -951,3 +950,4 @@ with tab_hist:
 
     st.divider()
     st.caption("Fontes: tennisexplorer.com e tennisabstract.com | App experimental — design demo")
+
