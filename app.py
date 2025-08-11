@@ -829,7 +829,7 @@ with tab_hist:
         if "valor_apostado" in df_hist.columns:
             df_hist = df_hist.drop(columns=["valor_apostado"])
 
-        resultados_validos = ["", "GANHO", "PERDIDO", "DEVOLVIDO"]
+        resultados_validos = ["", "ganhou", "perdeu", "cashout"]
         gb = GridOptionsBuilder.from_dataframe(df_hist)
         gb.configure_column("resultado", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": resultados_validos})
         gb.configure_selection(selection_mode="multiple", use_checkbox=True, groupSelectsChildren=True)
@@ -923,8 +923,8 @@ with tab_hist:
             df_hist_resultado["ganho"], df_hist_resultado["lucro"] = zip(*df_hist_resultado.apply(calc_resultados, axis=1))
 
             num_apostas = len(df_hist_resultado)
-            apostas_ganhas = (df_hist_resultado["resultado"] == "GANHO").sum()
-            apostas_perdidas = (df_hist_resultado["resultado"] == "PERDIDO").sum()
+            apostas_ganhas = (df_hist_resultado["resultado"] == "ganhou").sum()
+            apostas_perdidas = (df_hist_resultado["resultado"] == "perdeu").sum()
             montante_investido = df_hist_resultado["stake"].sum()
             montante_ganho = df_hist_resultado["ganho"].sum()
             yield_percent = ((montante_ganho - montante_investido) / montante_investido * 100) if montante_investido > 0 else 0.0
