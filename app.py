@@ -829,7 +829,7 @@ with tab_hist:
         if "valor_apostado" in df_hist.columns:
             df_hist = df_hist.drop(columns=["valor_apostado"])
 
-        resultados_validos = ["", "ganhou", "perdeu", "cashout"]
+        resultados_validos = ["", "GANHO", "PERDIDO", "DEVOLVIDO"]
         gb = GridOptionsBuilder.from_dataframe(df_hist)
         gb.configure_column("resultado", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": resultados_validos})
         gb.configure_selection(selection_mode="multiple", use_checkbox=True, groupSelectsChildren=True)
