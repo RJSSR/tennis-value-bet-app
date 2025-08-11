@@ -18,7 +18,7 @@ ODD_MIN = 1.425
 ODD_MAX = 3.15
 
 BASE_URL = "https://www.tennisexplorer.com"
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = "C:\Users\Ricardo\Dropbox\Apostas\Tenis\tennis-value-bet-app"  # ou o caminho da tua Dropbox no PC
 HISTORICO_CSV = os.path.join(BASE_DIR, "historico_apostas.csv")
 
 superficies_map = {"Piso Duro": "Hard", "Terra": "Clay", "Relva": "Grass"}
